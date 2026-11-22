@@ -22,6 +22,7 @@ import { MobileShareSheet } from '../MobileSharePanel';
 interface AuthScreenProps {
   existingLocalRecordsCount: number;
   onAuthenticated?: () => void;
+  onPrepareFreshDevice?: () => { ok: boolean; error?: string } | void;
 }
 
 type AuthMode = 'login' | 'signup' | 'reset';
@@ -29,6 +30,7 @@ type AuthMode = 'login' | 'signup' | 'reset';
 export const AuthScreen: React.FC<AuthScreenProps> = ({
   existingLocalRecordsCount,
   onAuthenticated,
+  onPrepareFreshDevice,
 }) => {
   const [mode, setMode] = useState<AuthMode>('login');
   const [name, setName] = useState('');
@@ -115,8 +117,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
       <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl p-6 sm:p-8 space-y-6">
         <div className="space-y-1">
           <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-extrabold tracking-tight text-[#14263d] dark:text-white">
-              FINANCE <span className="text-emerald-600 dark:text-emerald-400">IA</span>
+            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#14263d] dark:text-white">
+              FINACE SAVIO BAIA <span className="text-emerald-600 dark:text-emerald-400">IA</span>
             </h1>
             <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-1">
               <ShieldCheck size={14} /> Conta Protegida
@@ -133,12 +135,32 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
         </div>
 
         {existingLocalRecordsCount > 0 && (
-          <div className="p-3.5 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200 flex items-start gap-2.5">
-            <Database size={16} className="shrink-0 mt-0.5 text-sky-600 dark:text-sky-400" />
-            <div>
-              <strong>{existingLocalRecordsCount} registro(s) local(is) preservado(s)</strong>{' '}
-              neste dispositivo. Após o login, você poderá migrar ou conciliar sem perder nada.
+          <div className="p-3.5 rounded-2xl bg-sky-50 dark:bg-sky-950/50 border border-sky-200 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200 space-y-2">
+            <div className="flex items-start gap-2.5">
+              <Database size={16} className="shrink-0 mt-0.5 text-sky-600 dark:text-sky-400" />
+              <div>
+                <strong>{existingLocalRecordsCount} registro(s) local(is) neste dispositivo</strong>{' '}
+                (de uma sessão anterior). Ao entrar em uma nova conta, você poderá escolher começar do zero ou importar.
+              </div>
             </div>
+            {onPrepareFreshDevice && (
+              <button
+                type="button"
+                onClick={() => {
+                  const res = onPrepareFreshDevice();
+                  if (res && !res.ok && res.error) {
+                    setErrorMsg(res.error);
+                  } else {
+                    setInfoMsg(
+                      'Backup local salvo com segurança e tela zerada. Agora entre na outra conta para começar do zero.'
+                    );
+                  }
+                }}
+                className="w-full min-h-9 px-3 rounded-xl bg-white dark:bg-slate-900 border border-sky-300 dark:border-sky-700 hover:bg-sky-100 dark:hover:bg-sky-900/40 text-sky-900 dark:text-sky-100 font-bold text-[11px] cursor-pointer"
+              >
+                Salvar backup local e limpar cache para começar do zero
+              </button>
+            )}
           </div>
         )}
 
@@ -186,7 +208,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
               d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96Z"
             />
           </svg>
-          Entrar com Google
+          Entrar com Google (escolher conta)
         </button>
 
         <div className="relative flex items-center justify-center">
@@ -317,7 +339,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             ) : (
               <>
                 <span>
-                  {mode === 'login' && 'Entrar no FINANCE IA'}
+                  {mode === 'login' && 'Entrar no FINACE SAVIO BAIA IA'}
                   {mode === 'signup' && 'Criar minha conta'}
                   {mode === 'reset' && 'Enviar link de recuperação'}
                 </span>
@@ -326,6 +348,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({
             )}
           </button>
         </form>
+
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+          Dica: o login por <strong>Google</strong> já permite escolher qualquer outra conta Google imediatamente. O acesso por <strong>E-mail/Senha</strong> só funciona após ativar o provedor <em>Email/Password</em> no Firebase Console.
+        </p>
 
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
           {mode !== 'login' ? (

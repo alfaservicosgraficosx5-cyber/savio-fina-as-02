@@ -41,7 +41,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({ onUnlocked }) 
             <Lock className="w-7 h-7" />
           </div>
           <h1 className="text-xl font-extrabold text-[#14263d] dark:text-white">
-            FINANCE IA Protegido
+            FINACE SAVIO BAIA IA Protegido
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Digite seu PIN para descriptografar o cofre local e acessar seus saldos.

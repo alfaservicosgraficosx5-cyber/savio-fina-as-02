@@ -87,7 +87,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "3f226624e875d53d60f3b0a4f2464b5b"
   }, {
     "url": "index.html",
-    "revision": "543bdb5e1bf940f44e247746d0e15a5f"
+    "revision": "d3e003ff3b7df8a396d106b5739c7c5f"
   }, {
     "url": "icon.svg",
     "revision": "eca6ba2a95c716dac62c23f7f74f66a1"
@@ -98,10 +98,10 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-Bd17z0YL.js",
     "revision": null
   }, {
-    "url": "assets/index-CSOo5Hbk.js",
+    "url": "assets/index-aU6Bqav4.css",
     "revision": null
   }, {
-    "url": "assets/index-Bx8LyCdc.css",
+    "url": "assets/index-BZYpizpm.js",
     "revision": null
   }, {
     "url": "assets/aistudio/finance_ia_prototipo_b34d3cd6.html",
@@ -123,7 +123,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "61c091e7b2654a88e9255e75908db701"
   }, {
     "url": "manifest.webmanifest",
-    "revision": "2e54c3561247fe8c991ced545f408ea7"
+    "revision": "231b7f2fd5054af3745ae7f07b5db178"
   }], {});
   workbox.cleanupOutdatedCaches();
   workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {

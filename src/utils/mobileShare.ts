@@ -53,7 +53,7 @@ export function resolveMobileShareInfo(explicitOrigin?: string): MobileShareUrlI
 }
 
 export function buildWhatsAppShareUrl(shareUrl: string): string {
-  const text = `Acesse o FINANCE IA diretamente no seu celular (instalação PWA e sincronização na nuvem): ${shareUrl}`;
+  const text = `Acesse o FINACE SAVIO BAIA IA diretamente no seu celular (instalação PWA e sincronização na nuvem): ${shareUrl}`;
   return `https://wa.me/?text=${encodeURIComponent(text)}`;
 }
 
@@ -92,8 +92,8 @@ export async function triggerNativeMobileShare(shareUrl: string): Promise<'share
   if (!canUseNativeShare()) return 'unsupported';
   try {
     await navigator.share({
-      title: 'FINANCE IA — Gestão Financeira',
-      text: 'Acesse o FINANCE IA no celular com sincronização em nuvem e modo offline:',
+      title: 'FINACE SAVIO BAIA IA — Gestão Financeira',
+      text: 'Acesse o FINACE SAVIO BAIA IA no celular com sincronização em nuvem e modo offline:',
       url: shareUrl,
     });
     return 'shared';

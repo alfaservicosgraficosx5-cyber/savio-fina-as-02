@@ -93,6 +93,7 @@ interface SettingsViewProps {
   onResendVerificationEmail?: () => Promise<{ ok: boolean; error?: string }>;
   onRefreshEmailVerification?: () => Promise<void>;
   onSignOut?: () => Promise<void>;
+  onSwitchAccountFresh?: () => Promise<void>;
   onClearLocalWorkspace?: () => void;
   onDeleteAccount?: () => Promise<{ ok: boolean; error?: string }>;
 }
@@ -132,6 +133,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onResendVerificationEmail,
   onRefreshEmailVerification,
   onSignOut,
+  onSwitchAccountFresh,
   onClearLocalWorkspace,
   onDeleteAccount,
 }) => {
@@ -987,7 +989,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <ShieldCheck className="w-4 h-4 text-emerald-600" /> Privacidade e LGPD
           </h3>
           <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            O FINANCE IA nunca solicita ou armazena senhas bancárias, código de segurança (CVV) ou número completo de cartões de crédito — apenas os 4 últimos dígitos para identificação.
+            O FINACE SAVIO BAIA IA nunca solicita ou armazena senhas bancárias, código de segurança (CVV) ou número completo de cartões de crédito — apenas os 4 últimos dígitos para identificação.
           </p>
         </div>
 
@@ -1009,6 +1011,16 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 className="px-4 min-h-11 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
               >
                 <LogOut className="w-4 h-4" /> Sair da conta (mantém nuvem intacta)
+              </button>
+            )}
+
+            {onSwitchAccountFresh && (
+              <button
+                type="button"
+                onClick={() => void onSwitchAccountFresh()}
+                className="px-4 min-h-11 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-900 dark:text-emerald-200 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" /> Trocar de conta e começar do zero (salva backup antes)
               </button>
             )}
 

@@ -79,7 +79,7 @@ const MobileShareContent: React.FC<MobileShareContentProps> = ({ compact = false
           {qrDataUrl ? (
             <img
               src={qrDataUrl}
-              alt="QR Code para abrir o FINANCE IA no celular"
+              alt="QR Code para abrir o FINACE SAVIO BAIA IA no celular"
               className="w-40 h-40 rounded-lg"
             />
           ) : (
@@ -179,7 +179,7 @@ export const MobileShareCard: React.FC = () => {
           <Smartphone className="w-4 h-4 text-emerald-600" /> Acesso no Celular & Link de Compartilhamento
         </h3>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Escaneie o QR Code ou envie o link abaixo para abrir o FINANCE IA diretamente no smartphone sem perder a sincronização da sua conta.
+          Escaneie o QR Code ou envie o link abaixo para abrir o FINACE SAVIO BAIA IA diretamente no smartphone sem perder a sincronização da sua conta.
         </p>
       </div>
       <MobileShareContent />

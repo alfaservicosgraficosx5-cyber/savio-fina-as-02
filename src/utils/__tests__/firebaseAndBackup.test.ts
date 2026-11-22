@@ -328,4 +328,37 @@ describe('Inicialização Vazia, Proteção de Dados, Auth, Sync & Backup Duplo'
     expect(syncSrc).toContain("where('ownerUid', '==', uid)");
     expect(backupSrc).toContain("where('ownerUid', '==', uid)");
   });
+
+  it('usa estritamente as credenciais válidas de firebase-applet-config.json sem sobrescrita por placeholders', async () => {
+    const [{ resolvedFirebaseConfig }, rawConfig] = await Promise.all([
+      import('../../services/firebaseClient'),
+      Promise.resolve(
+        JSON.parse(
+          fs.readFileSync(path.resolve(__dirname, '../../../firebase-applet-config.json'), 'utf-8')
+        )
+      ),
+    ]);
+
+    expect(resolvedFirebaseConfig.apiKey).toBe(rawConfig.apiKey);
+    expect(resolvedFirebaseConfig.apiKey).toMatch(/^AIza[0-9A-Za-z_-]{20,}$/);
+    expect(resolvedFirebaseConfig.apiKey).not.toBe('123456');
+    expect(resolvedFirebaseConfig.projectId).toBe(rawConfig.projectId);
+    expect(resolvedFirebaseConfig.authDomain).toBe(rawConfig.authDomain);
+    expect(resolvedFirebaseConfig.appId).toBe(rawConfig.appId);
+    expect(resolvedFirebaseConfig.firestoreDatabaseId).toBe(rawConfig.firestoreDatabaseId);
+  });
+
+  it('isola cache local de outra conta (activeOwnerUid) antes de migrar para conta vazia', async () => {
+    const { clearActiveOwnerMeta } = await import('../../services/cloudSyncService');
+    window.localStorage.setItem('finance_ia_sync_meta_activeOwnerUid', 'uid-conta-antiga');
+    await clearActiveOwnerMeta();
+    expect(window.localStorage.getItem('finance_ia_sync_meta_activeOwnerUid')).toBeNull();
+
+    const syncSrc = fs.readFileSync(
+      path.resolve(__dirname, '../../services/cloudSyncService.ts'),
+      'utf-8'
+    );
+    expect(syncSrc).toContain("const previousOwnerUid = await getSyncMeta('activeOwnerUid')");
+    expect(syncSrc).toContain('if (previousOwnerUid && previousOwnerUid !== uid)');
+  });
 });

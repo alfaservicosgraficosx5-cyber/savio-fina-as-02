@@ -53,7 +53,7 @@ export const exportToGoogleSheets = async (token: string, transactions: any[]) =
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
-      properties: { title: `FINANCE IA - Relatório ${todayDisplayPtBr()}` }
+      properties: { title: `FINACE SAVIO BAIA IA - Relatório ${todayDisplayPtBr()}` }
     })
   });
   if (!createRes.ok) {
@@ -100,7 +100,7 @@ export const syncBoletoToCalendar = async (token: string, boleto: { beneficiario
   const exclusiveEndDate = addDaysLocal(boleto.vencimento, 1);
 
   const event = {
-    summary: `[FINANCE IA] Vencimento: ${boleto.beneficiario} - R$ ${boleto.valorOriginal}`,
+    summary: `[FINACE SAVIO BAIA IA] Vencimento: ${boleto.beneficiario} - R$ ${boleto.valorOriginal}`,
     description: `Boleto / Conta a pagar: ${boleto.descricao}`,
     start: { date: boleto.vencimento },
     end: { date: exclusiveEndDate },

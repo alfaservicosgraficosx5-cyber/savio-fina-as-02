@@ -93,7 +93,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="min-h-16 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <span className="text-[11px] uppercase tracking-wider text-slate-400 font-bold block">
-            FINANCE IA
+            FINACE SAVIO BAIA IA
           </span>
           <h2 className="text-base md:text-lg font-bold text-[#14263d] dark:text-white truncate">
             {tabTitles[currentTab] || 'Dashboard'}

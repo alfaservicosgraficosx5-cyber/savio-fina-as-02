@@ -179,7 +179,7 @@ async function startServer() {
       }
 
       const systemInstruction =
-        'Você é o assistente financeiro executivo do FINANCE IA. ' +
+        'Você é o assistente financeiro executivo do FINACE SAVIO BAIA IA. ' +
         'Responda em português, de forma clara, objetiva e fundamentada EXCLUSIVAMENTE nos números agregados fornecidos abaixo. ' +
         'Nunca invente saldos, datas ou valores. Se faltar algum dado no resumo, informe claramente o que não consta.\n\n' +
         `Resumo financeiro do período (${summaryContext.period}, escopo ${summaryContext.scope}):\n` +
@@ -441,7 +441,7 @@ ${cleanText ? `\nTexto adicional:\n${cleanText}` : ''}`;
 
   const PORT = Number(process.env.PORT) || 3000;
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`FINANCE IA server running on port ${PORT} (model: ${GEMINI_MODEL})`);
+    console.log(`FINACE SAVIO BAIA IA server running on port ${PORT} (model: ${GEMINI_MODEL})`);
   });
 }
 

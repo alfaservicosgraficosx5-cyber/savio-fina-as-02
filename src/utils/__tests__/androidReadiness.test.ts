@@ -14,7 +14,7 @@ describe('Prontidão Android Nativo, Capacitor & Pipeline CI/CD', () => {
   it('configura Capacitor com appId, webDir=dist e esquema HTTPS sem tráfego cleartext', () => {
     const capConfig = readRepoFile('capacitor.config.ts');
     expect(capConfig).toContain("appId: 'br.com.financeia.mobile'");
-    expect(capConfig).toContain("appName: 'FINANCE IA'");
+    expect(capConfig).toContain("appName: 'FINACE SAVIO BAIA IA'");
     expect(capConfig).toContain("webDir: 'dist'");
     expect(capConfig).toContain("androidScheme: 'https'");
     expect(capConfig).toContain('allowMixedContent: false');
@@ -54,7 +54,7 @@ describe('Prontidão Android Nativo, Capacitor & Pipeline CI/CD', () => {
     expect(manifest).toContain('android.permission.BIND_NOTIFICATION_LISTENER_SERVICE');
     expect(manifest).toContain('android.service.notification.NotificationListenerService');
 
-    expect(stringsXml).toContain('<string name="app_name">FINANCE IA</string>');
+    expect(stringsXml).toContain('<string name="app_name">FINACE SAVIO BAIA IA</string>');
     expect(stringsXml).toContain('<string name="package_name">br.com.financeia.mobile</string>');
 
     expect(proguard).toContain('-keep class br.com.financeia.mobile.** { *; }');

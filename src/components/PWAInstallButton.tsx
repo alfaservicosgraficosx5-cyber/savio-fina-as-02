@@ -72,7 +72,7 @@ export const PWAInstallButton: React.FC<{ compact?: boolean }> = ({ compact = fa
         type="button"
         onClick={install}
         className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white px-3 min-h-10 text-xs font-bold shadow-xs transition cursor-pointer shrink-0"
-        title="Instalar FINANCE IA como aplicativo"
+        title="Instalar FINACE SAVIO BAIA IA como aplicativo"
       >
         <Download size={15} />
         <span>{compact ? 'Instalar' : 'Instalar App'}</span>

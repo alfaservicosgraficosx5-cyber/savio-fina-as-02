@@ -55,6 +55,7 @@ export type ConflictResolutionStrategy = 'KEEP_LOCAL' | 'USE_CLOUD' | 'MERGE_BOT
 
 export interface SyncConflictState {
   uid: string;
+  previousOwnerUid?: string | null;
   detectedAt: string;
   localDataset: AppDataset;
   cloudDataset: AppDataset;
@@ -117,6 +118,17 @@ async function setSyncMeta(key: string, value: string): Promise<void> {
       await db.syncMetadata.put({ key, value, updatedAt: nowIso });
     } catch {
       // ignore IndexedDB mirror error
+    }
+  }
+}
+
+export async function clearActiveOwnerMeta(): Promise<void> {
+  removeRawKeySafe(`${SYNC_META_FALLBACK_PREFIX}activeOwnerUid`);
+  if (db) {
+    try {
+      await db.syncMetadata.delete('activeOwnerUid');
+    } catch {
+      // ignore IndexedDB delete error
     }
   }
 }
@@ -877,8 +889,29 @@ export async function reconcileCloudAndLocalOnLogin(params: {
     };
   }
 
-  // Case 3: Local device has data + cloud is empty -> validate backup BEFORE migrating!
+  // Case 3: Local device has data + cloud is empty
   if (localHasData && !cloudHasData) {
+    const previousOwnerUid = await getSyncMeta('activeOwnerUid');
+    if (previousOwnerUid && previousOwnerUid !== uid) {
+      return {
+        outcome: 'CONFLICT',
+        status: 'CONFLICT',
+        statusMessage:
+          'Esta conta está vazia na nuvem, mas há dados locais da conta anterior. Escolha começar do zero ou importar.',
+        conflict: {
+          uid,
+          previousOwnerUid,
+          detectedAt: new Date().toISOString(),
+          localDataset,
+          cloudDataset,
+          localCounts: getBackupCounts(localDataset),
+          cloudCounts: getBackupCounts(cloudDataset),
+          localHash: computeDatasetChecksum(localDataset),
+          cloudHash: computeDatasetChecksum(cloudDataset),
+        },
+      };
+    }
+
     const backupCheck = captureAndValidateExistingLocalBackup(localDataset, 'pre_migration', uid);
     if (!backupCheck.ok) {
       return {

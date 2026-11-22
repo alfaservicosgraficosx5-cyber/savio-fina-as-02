@@ -12,7 +12,7 @@ interface CapacitorConfig {
 
 const config: CapacitorConfig = {
   appId: 'br.com.financeia.mobile',
-  appName: 'FINANCE IA',
+  appName: 'FINACE SAVIO BAIA IA',
   webDir: 'dist',
   server: {
     androidScheme: 'https',

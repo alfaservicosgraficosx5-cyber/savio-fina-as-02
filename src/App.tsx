@@ -147,6 +147,7 @@ import {
 } from './services/authService';
 import { testFirestoreConnection } from './services/firebaseClient';
 import {
+  clearActiveOwnerMeta,
   enqueueCloudDatasetSync,
   getLastSyncInfo,
   getPendingCloudSyncCount,
@@ -1953,20 +1954,22 @@ export default function App() {
     }
   };
 
-  const handleClearLocalWorkspace = () => {
+  const handlePrepareFreshDeviceOnAuth = (): { ok: boolean; error?: string } => {
     const check = captureAndValidateExistingLocalBackup(
       latestDatasetRef.current,
       'manual',
       currentUser?.uid
     );
     if (!check.ok) {
-      setStorageWarning(
-        check.error || 'Não foi possível validar o backup. Seus dados originais foram preservados.'
-      );
-      return;
+      const msg =
+        check.error || 'Não foi possível validar o backup. Seus dados originais foram preservados.';
+      setStorageWarning(msg);
+      return { ok: false, error: msg };
     }
     if (check.snapshot) setPreResetSnapshot(check.snapshot);
     clearEntityStoragePreservingBackups();
+    void clearActiveOwnerMeta();
+    void fileStorageService.clearAllFiles();
     skipNextAutoSyncRef.current = true;
     setTransactions([]);
     setAccounts([]);
@@ -1978,11 +1981,27 @@ export default function App() {
     setSalaryData(EMPTY_SALARY_DATASET);
     setBudgets([]);
     setCategoryRules([]);
+    return { ok: true };
+  };
+
+  const handleClearLocalWorkspace = () => {
+    const res = handlePrepareFreshDeviceOnAuth();
+    if (!res.ok) return;
     setFeedbackBanner('Cache local limpo após backup. Seus dados na nuvem permanecem intactos.');
     setTimeout(() => setFeedbackBanner(null), 5000);
   };
 
   const handleSignOut = async () => {
+    await signOutAuthUser();
+    cloudHydratedForUidRef.current = null;
+    setCurrentUser(null);
+    setSyncConflict(null);
+    setCloudBackups([]);
+  };
+
+  const handleSwitchAccountFresh = async () => {
+    const res = handlePrepareFreshDeviceOnAuth();
+    if (!res.ok) return;
     await signOutAuthUser();
     cloudHydratedForUidRef.current = null;
     setCurrentUser(null);
@@ -2050,7 +2069,7 @@ export default function App() {
       <div className="min-h-dvh bg-[#f3f5f8] dark:bg-[#0b1120] grid place-items-center p-6 text-center">
         <div className="space-y-2">
           <div className="text-xl font-extrabold text-[#14263d] dark:text-white">
-            FINANCE <span className="text-emerald-600 dark:text-emerald-400">IA</span>
+            FINACE SAVIO BAIA <span className="text-emerald-600 dark:text-emerald-400">IA</span>
           </div>
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
             Verificando sessão segura e integridade local...
@@ -2064,6 +2083,7 @@ export default function App() {
     return (
       <AuthScreen
         existingLocalRecordsCount={existingLocalRecordsCount}
+        onPrepareFreshDevice={handlePrepareFreshDeviceOnAuth}
       />
     );
   }
@@ -2477,6 +2497,7 @@ export default function App() {
               onResendVerificationEmail={resendVerificationEmail}
               onRefreshEmailVerification={handleRefreshEmailVerification}
               onSignOut={handleSignOut}
+              onSwitchAccountFresh={handleSwitchAccountFresh}
               onClearLocalWorkspace={handleClearLocalWorkspace}
               onDeleteAccount={handleDeleteUserAccount}
             />

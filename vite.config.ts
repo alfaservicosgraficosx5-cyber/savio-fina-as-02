@@ -21,8 +21,8 @@ export default defineConfig(() => {
         ],
         manifest: {
           id: '/',
-          name: 'FINANCE IA — Gestão Financeira Inteligente',
-          short_name: 'FINANCE IA',
+          name: 'FINACE SAVIO BAIA IA — Gestão Financeira Inteligente',
+          short_name: 'FINACE SAVIO BAIA IA',
           description:
             'Plataforma inteligente de gestão financeira pessoal (CPF) e empresarial (MEI/CNPJ) com modo offline, scanner e boletos.',
           theme_color: '#14263d',

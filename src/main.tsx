@@ -26,7 +26,7 @@ if (typeof window !== 'undefined') {
         void updateSW(true);
       },
       onOfflineReady() {
-        console.info('FINANCE IA pronto para funcionamento offline.');
+        console.info('FINACE SAVIO BAIA IA pronto para funcionamento offline.');
       },
       onRegisterError(err) {
         console.warn('Registro de Service Worker ignorado:', err);

@@ -61,8 +61,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-64 bg-[#14263d] dark:bg-slate-950 text-white p-5 flex flex-col flex-shrink-0 select-none shadow-xl border-r border-slate-800/40">
       <div className="px-3 py-2 mb-2">
-        <h1 className="text-xl font-extrabold tracking-wider text-white">
-          FINANCE <span className="text-emerald-400">IA</span>
+        <h1 className="text-lg font-extrabold tracking-wide text-white leading-tight">
+          FINACE SAVIO BAIA <span className="text-emerald-400">IA</span>
         </h1>
         <small className="block text-[9px] tracking-widest text-[#aebed0] uppercase mt-1">
           Gestão Financeira Inteligente
@@ -71,7 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       <div className="my-3 px-3 py-3 bg-[#203a59] dark:bg-slate-900 rounded-xl flex items-center gap-3 border border-[#2a4d75] dark:border-slate-800">
         <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-300 grid place-items-center font-bold text-sm shrink-0">
-          {(currentUser?.displayName || 'FI').slice(0, 2).toUpperCase()}
+          {(currentUser?.displayName || 'FS').slice(0, 2).toUpperCase()}
         </div>
         <div className="overflow-hidden flex-1 min-w-0">
           <p className="text-xs font-bold text-white truncate">

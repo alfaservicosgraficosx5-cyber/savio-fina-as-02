@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">FINANCE IA</string>
-    <string name="title_activity_main">FINANCE IA</string>
+    <string name="app_name">FINACE SAVIO BAIA IA</string>
+    <string name="title_activity_main">FINACE SAVIO BAIA IA</string>
     <string name="package_name">br.com.financeia.mobile</string>
     <string name="custom_url_scheme">br.com.financeia.mobile</string>
 </resources>

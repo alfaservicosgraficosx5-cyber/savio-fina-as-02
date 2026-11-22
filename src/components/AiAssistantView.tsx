@@ -33,7 +33,7 @@ export const AiAssistantView: React.FC<AiAssistantViewProps> = ({
     {
       id: 'msg-1',
       sender: 'ai',
-      text: 'Olá! Sou o assistente financeiro do FINANCE IA. Posso responder com base nos totais reais do período selecionado (CPF e CNPJ). Em que posso ajudar?',
+      text: 'Olá! Sou o assistente financeiro do FINACE SAVIO BAIA IA. Posso responder com base nos totais reais do período selecionado (CPF e CNPJ). Em que posso ajudar?',
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
   ]);

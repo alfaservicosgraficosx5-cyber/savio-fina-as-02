@@ -37,7 +37,7 @@ export function mapFirebaseUser(user: User): AuthUserSummary {
   return {
     uid: user.uid,
     email: user.email || '',
-    displayName: user.displayName || user.email?.split('@')[0] || 'Usuário FINANCE IA',
+    displayName: user.displayName || user.email?.split('@')[0] || 'Usuário FINACE SAVIO BAIA IA',
     ...(user.photoURL ? { photoURL: user.photoURL } : {}),
     emailVerified: Boolean(user.emailVerified),
     providerIds: user.providerData.map((p) => p.providerId),
@@ -91,6 +91,12 @@ export function translateFirebaseAuthError(err: unknown): {
         providerNotEnabled: true,
         message:
           'O método E-mail/Senha ainda não foi ativado no Firebase Console deste projeto. Use "Entrar com Google" ou ative Email/Password em Authentication -> Sign-in method.',
+      };
+    case 'auth/invalid-api-key':
+    case 'auth/api-key-not-valid.-please-pass-a-valid-api-key.':
+      return {
+        message:
+          'Chave de API do Firebase inválida ou desatualizada. Verifique firebase-applet-config.json e recarregue o aplicativo.',
       };
     case 'auth/requires-recent-login':
       return {
