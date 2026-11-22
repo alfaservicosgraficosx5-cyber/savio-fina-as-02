@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import {
   Home,
   ArrowLeftRight,
@@ -17,6 +18,7 @@ import {
   CalendarDays,
   TrendingUp,
   Banknote,
+  BellRing,
 } from 'lucide-react';
 
 import { EntityScope } from '../types';
@@ -36,6 +38,17 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 }) => {
   const [moreOpen, setMoreOpen] = useState(false);
 
+  useLockBodyScroll(moreOpen);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [moreOpen]);
+
   const modules = [
     { id: 'salary', label: 'Salários e Rendas', icon: Banknote },
     { id: 'accounts', label: 'Contas bancárias', icon: Landmark },
@@ -47,6 +60,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     { id: 'assets', label: 'Patrimônio', icon: Package },
     { id: 'documents', label: 'Documentos e Scanner', icon: FileText },
     { id: 'imports', label: 'Extratos e Open Finance', icon: Receipt },
+    { id: 'notifications', label: 'Notificações · Banco', icon: BellRing },
     { id: 'ai', label: 'Inteligência Artificial', icon: Brain },
     { id: 'reports', label: 'Relatórios', icon: ChartNoAxesCombined },
     { id: 'settings', label: 'Configurações', icon: Settings },
@@ -140,7 +154,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           />
 
           <section
-            className="absolute bottom-0 inset-x-0 bg-white dark:bg-slate-900 rounded-t-3xl p-5 pb-[calc(24px+env(safe-area-inset-bottom))] max-h-[85dvh] overflow-y-auto shadow-2xl"
+            className="absolute bottom-0 inset-x-0 bg-white dark:bg-slate-900 rounded-t-3xl p-5 pb-[calc(24px+env(safe-area-inset-bottom))] max-h-[85dvh] overflow-y-auto overscroll-contain shadow-2xl"
             role="dialog"
             aria-modal="true"
             aria-label="Mais funcionalidades"

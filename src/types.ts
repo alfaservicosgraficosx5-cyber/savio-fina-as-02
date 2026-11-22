@@ -3,7 +3,7 @@ import type { MoneyCents } from './domain/money/money';
 export type EntityScope = 'CPF' | 'CNPJ' | 'CONSOLIDATED';
 export type Direction = 'INCOME' | 'EXPENSE';
 export type TransactionStatus = 'PLANNED' | 'PENDING' | 'CONFIRMED' | 'CANCELLED';
-export type TransactionOrigin = 'MANUAL' | 'IMPORT' | 'OPEN_FINANCE' | 'BOLETO';
+export type TransactionOrigin = 'MANUAL' | 'IMPORT' | 'OPEN_FINANCE' | 'BOLETO' | 'BANK_NOTIFICATION';
 
 export const APP_CATEGORIES = [
   'Salário',
@@ -66,6 +66,7 @@ export interface Transaction {
   id: string;
   entityId: 'CPF' | 'CNPJ';
   accountId: string;
+  creditCardId?: string;
   date: string; // YYYY-MM-DD
   description: string;
   category: string;

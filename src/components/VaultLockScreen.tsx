@@ -34,7 +34,7 @@ export const VaultLockScreen: React.FC<VaultLockScreenProps> = ({ onUnlocked }) 
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-4">
+    <div className="min-h-dvh bg-[#0f172a] flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5">
         <div className="flex flex-col items-center text-center space-y-2">
           <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 grid place-items-center">

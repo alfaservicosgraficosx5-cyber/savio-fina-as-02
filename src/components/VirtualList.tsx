@@ -21,7 +21,7 @@ export function computeWindowedRange(params: {
     scrollTop,
     viewportHeight,
     itemHeight,
-    overscan = 6,
+    overscan = 8,
     threshold = 35,
   } = params;
 
@@ -63,7 +63,7 @@ interface VirtualCardListProps<T> {
 export function VirtualCardList<T>({
   items,
   itemHeight = 112,
-  maxHeightClass = 'max-h-[68vh]',
+  maxHeightClass = 'max-h-[70dvh]',
   threshold = 35,
   renderItem,
   getKey,
@@ -100,7 +100,7 @@ export function VirtualCardList<T>({
     <div
       ref={containerRef}
       onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
-      className={`${maxHeightClass} overflow-y-auto ${className}`}
+      className={`${maxHeightClass} overflow-y-auto overscroll-contain ${className}`}
     >
       {range.topPaddingPx > 0 && <div style={{ height: range.topPaddingPx }} aria-hidden="true" />}
       {visibleSlice.map((item, idx) => (

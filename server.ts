@@ -407,8 +407,22 @@ ${cleanText ? `\nTexto adicional:\n${cleanText}` : ''}`;
   });
 
   if (process.env.NODE_ENV === 'production' && fs.existsSync(path.resolve('dist'))) {
-    app.use(express.static(path.resolve('dist')));
+    app.use(
+      express.static(path.resolve('dist'), {
+        setHeaders: (res, filePath) => {
+          if (
+            filePath.endsWith('index.html') ||
+            filePath.endsWith('sw.js') ||
+            filePath.endsWith('registerSW.js') ||
+            filePath.endsWith('manifest.webmanifest')
+          ) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          }
+        },
+      })
+    );
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.sendFile(path.resolve('dist', 'index.html'));
     });
   } else {

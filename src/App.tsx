@@ -110,6 +110,28 @@ import { SettingsView } from './components/SettingsView';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { InvestmentDashboard } from './components/investments/InvestmentDashboard';
 import { SalaryView } from './components/salary/SalaryView';
+import { NotificationInbox } from './components/notifications/NotificationInbox';
+import type {
+  BankNotificationViewItem,
+  NotificationCaptureSettings,
+  NotificationPermissionStatus,
+  NotificationReviewResolution,
+} from './domain/notifications/notification.types';
+import { resolveConfirmedNotificationFinancialEffects } from './domain/notifications/notificationIntegration';
+import {
+  financeNotificationBridge,
+  getRuntimeNotificationPlatform,
+} from './capacitor/financeNotificationPlugin';
+import {
+  listNotificationInboxItems,
+  loadNotificationSettings,
+  purgeDiscardedNotifications,
+  purgeExpiredNotifications,
+  revokeConsentAndPurgeAllNotifications,
+  saveNotificationSettings,
+  syncPendingEventsFromAndroid,
+  updateNotificationStatus,
+} from './services/notificationQueueService';
 import { RotateCcw, X } from 'lucide-react';
 
 export default function App() {
@@ -138,6 +160,26 @@ export default function App() {
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const docDeleteTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const hiddenSinceRef = useRef<number | null>(null);
+
+  const [notificationSettings, setNotificationSettings] = useState<NotificationCaptureSettings>(
+    () => loadNotificationSettings()
+  );
+  const [notificationItems, setNotificationItems] = useState<BankNotificationViewItem[]>([]);
+  const [syncingNotifications, setSyncingNotifications] = useState(false);
+  const [notificationPermissionStatus, setNotificationPermissionStatus] =
+    useState<NotificationPermissionStatus>(() => {
+      const platform = getRuntimeNotificationPlatform();
+      return {
+        platform,
+        supported: platform === 'android',
+        listenerEnabled: false,
+        consentGranted: loadNotificationSettings().consentGranted,
+        pendingNativeCount: 0,
+        ...(platform !== 'android'
+          ? { unsupportedReason: platform === 'ios' ? 'IOS_UNSUPPORTED' : 'WEB_UNSUPPORTED' }
+          : {}),
+      };
+    });
 
   const handleNavigate = useCallback((tab: string, filter?: LedgerDrilldownFilter) => {
     setCurrentTab(tab);
@@ -374,6 +416,53 @@ export default function App() {
     };
   }, []);
 
+  const refreshNotificationState = useCallback(
+    async (syncNative: boolean) => {
+      await purgeExpiredNotifications();
+      const status = await financeNotificationBridge.getPermissionStatus(
+        notificationSettings.consentGranted
+      );
+      setNotificationPermissionStatus(status);
+
+      if (syncNative && status.supported && notificationSettings.consentGranted) {
+        setSyncingNotifications(true);
+        try {
+          const res = await syncPendingEventsFromAndroid({
+            settings: notificationSettings,
+            existingTransactions: transactions,
+            customRules: categoryRules,
+          });
+          if (res.addedCount > 0) {
+            setFeedbackBanner(
+              `${res.addedCount} nova(s) notificação(ões) bancária(s) pronta(s) para revisão.`
+            );
+            setTimeout(() => setFeedbackBanner(null), 5000);
+          }
+        } finally {
+          setSyncingNotifications(false);
+        }
+      }
+
+      const items = await listNotificationInboxItems();
+      setNotificationItems(items);
+    },
+    [notificationSettings, transactions, categoryRules]
+  );
+
+  useEffect(() => {
+    void refreshNotificationState(notificationSettings.autoSyncOnResume);
+  }, []);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshNotificationState(notificationSettings.autoSyncOnResume);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [refreshNotificationState, notificationSettings.autoSyncOnResume]);
+
   // Derived account balances: openingBalance + sum(transactions by accountId)
   const derivedAccounts = useMemo(
     () => calculateAccountBalances(accounts, transactions),
@@ -441,18 +530,22 @@ export default function App() {
   }, [categoryRules]);
 
   useEffect(() => {
-    void mirrorDatasetToDexie(
-      {
-        accounts,
-        transactions,
-        creditCards,
-        boletos,
-        debts,
-        assets,
-        documents,
-      },
-      { theme, density, zoom }
-    );
+    const timer = window.setTimeout(() => {
+      void mirrorDatasetToDexie(
+        {
+          accounts,
+          transactions,
+          creditCards,
+          boletos,
+          debts,
+          assets,
+          documents,
+        },
+        { theme, density, zoom }
+      );
+    }, 450);
+
+    return () => window.clearTimeout(timer);
   }, [accounts, transactions, creditCards, boletos, debts, assets, documents, theme, density, zoom]);
 
   // Keep encrypted AES-GCM vault snapshot up-to-date while unlocked
@@ -1503,11 +1596,121 @@ export default function App() {
     );
   }
 
+  const pendingBankNotificationsCount = useMemo(
+    () => notificationItems.filter((n) => n.status === 'PENDING').length,
+    [notificationItems]
+  );
+
+  const handleConfirmNotification = async (resolution: NotificationReviewResolution) => {
+    const targetItem = notificationItems.find((n) => n.id === resolution.notificationId);
+    if (!targetItem) return;
+
+    try {
+      const effects = resolveConfirmedNotificationFinancialEffects({
+        item: targetItem,
+        resolution,
+        accounts: derivedAccounts,
+        creditCards,
+        transactions,
+        boletos,
+      });
+
+      const nextAuditLogs = effects.newAuditEntry
+        ? [effects.newAuditEntry, ...auditLogs].slice(0, 1000)
+        : undefined;
+
+      if (effects.updatedTransactions) {
+        setTransactions(effects.updatedTransactions);
+      }
+      if (effects.updatedCreditCards) {
+        setCreditCards(effects.updatedCreditCards);
+      }
+      if (effects.updatedBoletos) {
+        setBoletos(effects.updatedBoletos);
+      }
+      if (nextAuditLogs) {
+        setAuditLogs(nextAuditLogs);
+      }
+
+      await commitAtomicMutationBatch({
+        ...(effects.updatedTransactions ? { transactions: effects.updatedTransactions } : {}),
+        ...(effects.updatedCreditCards ? { creditCards: effects.updatedCreditCards } : {}),
+        ...(effects.updatedBoletos ? { boletos: effects.updatedBoletos } : {}),
+        ...(nextAuditLogs ? { auditLogs: nextAuditLogs } : {}),
+      });
+
+      await updateNotificationStatus({
+        id: targetItem.id,
+        status: 'CONFIRMED',
+        confirmedTransactionId: effects.confirmedTransactionId,
+        confirmedCreditCardId: effects.confirmedCreditCardId,
+      });
+
+      await refreshNotificationState(false);
+      setFeedbackBanner(effects.feedbackMessage);
+      setTimeout(() => setFeedbackBanner(null), 5000);
+    } catch (err) {
+      setStorageWarning(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível confirmar a notificação bancária.'
+      );
+    }
+  };
+
+  const handleDiscardNotification = async (notificationId: string, reason?: string) => {
+    await updateNotificationStatus({
+      id: notificationId,
+      status: 'DISCARDED',
+      discardReason: reason,
+    });
+    await refreshNotificationState(false);
+  };
+
+  const handleUpdateNotificationSettings = async (next: NotificationCaptureSettings) => {
+    const saved = await saveNotificationSettings(next);
+    setNotificationSettings(saved);
+    const status = await financeNotificationBridge.getPermissionStatus(saved.consentGranted);
+    setNotificationPermissionStatus(status);
+  };
+
+  const handleOpenAndroidNotificationSettings = async () => {
+    const res = await financeNotificationBridge.openNotificationSettings();
+    if (!res.opened && res.error) {
+      setStorageWarning(res.error);
+    }
+  };
+
+  const handlePurgeDiscardedNotifications = async () => {
+    const removed = await purgeDiscardedNotifications();
+    await refreshNotificationState(false);
+    setFeedbackBanner(
+      removed > 0
+        ? `${removed} notificação(ões) descartada(s) removida(s) da fila.`
+        : 'Nenhuma notificação descartada para limpar.'
+    );
+    setTimeout(() => setFeedbackBanner(null), 4000);
+  };
+
+  const handleRevokeAndWipeNotifications = async () => {
+    const revoked = await revokeConsentAndPurgeAllNotifications();
+    setNotificationSettings(revoked);
+    setNotificationItems([]);
+    const status = await financeNotificationBridge.getPermissionStatus(false);
+    setNotificationPermissionStatus(status);
+    setFeedbackBanner('Autorização revogada e toda a fila criptografada de notificações foi apagada.');
+    setTimeout(() => setFeedbackBanner(null), 5000);
+  };
+
   return (
-    <div className="flex min-h-screen bg-[#f3f5f8] dark:bg-[#0b1120] text-[#172536] dark:text-slate-100 font-sans">
+    <div className="flex min-h-dvh bg-[#f3f5f8] dark:bg-[#0b1120] text-[#172536] dark:text-slate-100 font-sans">
       {/* Sidebar hidden on mobile */}
       <div className="hidden md:flex">
-        <Sidebar currentTab={currentTab} setCurrentTab={(tab) => handleNavigate(tab)} />
+        <Sidebar
+          currentTab={currentTab}
+          setCurrentTab={(tab) => handleNavigate(tab)}
+          pendingBankNotificationsCount={pendingBankNotificationsCount}
+        />
       </div>
 
       <div className="flex-1 flex flex-col min-w-0">
@@ -1695,6 +1898,24 @@ export default function App() {
               onAddCategoryRule={handleAddCategoryRule}
               onDeleteCategoryRule={handleDeleteCategoryRule}
               onImportTransactions={handleImportTransactions}
+            />
+          )}
+
+          {currentTab === 'notifications' && (
+            <NotificationInbox
+              items={notificationItems}
+              accounts={derivedAccounts}
+              creditCards={creditCards}
+              settings={notificationSettings}
+              permissionStatus={notificationPermissionStatus}
+              syncing={syncingNotifications}
+              onSyncNow={() => refreshNotificationState(true)}
+              onConfirmItem={handleConfirmNotification}
+              onDiscardItem={handleDiscardNotification}
+              onUpdateSettings={handleUpdateNotificationSettings}
+              onOpenAndroidSettings={handleOpenAndroidNotificationSettings}
+              onPurgeDiscarded={handlePurgeDiscardedNotifications}
+              onRevokeAndWipe={handleRevokeAndWipeNotifications}
             />
           )}
 

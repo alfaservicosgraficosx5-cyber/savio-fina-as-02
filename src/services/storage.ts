@@ -22,6 +22,7 @@ export const STORAGE_KEYS = {
   reversals: 'finance_ia_reversals',
   preResetSnapshot: 'finance_ia_pre_reset_snapshot',
   recoveryIndex: 'finance_ia_recovery_backups',
+  notificationSettings: 'finance_ia_notification_settings',
 } as const;
 
 export interface RecoveryBackup {

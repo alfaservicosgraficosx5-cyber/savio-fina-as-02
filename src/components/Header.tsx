@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { EntityScope, Boleto } from '../types';
 import { calculateCountdown } from '../utils/countdown';
 import { PeriodOption } from '../utils/dateUtils';
@@ -33,6 +33,27 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
 }) => {
   const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setNotifOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [notifOpen]);
 
   const tabTitles: Record<string, string> = {
     dashboard: 'Visão executiva',
@@ -48,6 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
     assets: 'Patrimônio e investimentos',
     documents: 'Central de Documentos & Leitura',
     imports: 'Extratos & Open Finance',
+    notifications: 'Central de Notificações Bancárias',
     ai: 'Inteligência Artificial',
     reports: 'Relatórios gerenciais',
     settings: 'Configurações',
@@ -71,13 +93,13 @@ export const Header: React.FC<HeaderProps> = ({
           </h2>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {/* Dynamic Period selector (YYYY-MM) */}
           <select
             aria-label="Período de referência"
             value={period}
             onChange={(e) => setPeriod(e.target.value)}
-            className="border border-slate-200 dark:border-slate-700 py-1.5 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 cursor-pointer min-h-11"
+            className="border border-slate-200 dark:border-slate-700 py-1.5 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200 outline-none focus:border-emerald-500 cursor-pointer min-h-11 max-w-[124px] sm:max-w-none truncate"
           >
             {periodOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -110,13 +132,13 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
 
           {/* Notifications */}
-          <div className="relative">
+          <div className="relative shrink-0" ref={notifRef}>
             <button
               type="button"
               onClick={() => setNotifOpen((o) => !o)}
               aria-label="Notificações de vencimentos"
               aria-expanded={notifOpen}
-              className="min-w-11 min-h-11 grid place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer relative"
+              className="min-w-11 min-h-11 grid place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer relative shrink-0"
             >
               <Bell size={20} />
               {alertBoletos.length > 0 && (
@@ -125,7 +147,7 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {notifOpen && (
-              <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-4 z-50">
+              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl p-4 z-50">
                 <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
                   <span className="text-sm font-bold text-[#14263d] dark:text-white">
                     Alertas de vencimento ({alertBoletos.length})

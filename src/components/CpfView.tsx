@@ -287,7 +287,7 @@ export const CpfView: React.FC<CpfViewProps> = ({
         ) : !isDesktop ? (
           <VirtualCardList
             items={filtered}
-            itemHeight={116}
+            itemHeight={156}
             getKey={(t) => t.id}
             className="divide-y divide-slate-100 dark:divide-slate-800"
             renderItem={(t) => {

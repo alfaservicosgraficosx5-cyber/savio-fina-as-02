@@ -65,13 +65,29 @@ export class ErrorBoundary extends React.Component<
     URL.revokeObjectURL(url);
   };
 
+  private handleClearCacheAndReload = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r) => r.unregister()));
+      }
+      if (typeof window !== 'undefined' && 'caches' in window) {
+        const keys = await window.caches.keys();
+        await Promise.all(keys.map((k) => window.caches.delete(k)));
+      }
+    } catch {
+      // ignore cleanup error and proceed to reload
+    }
+    window.location.reload();
+  };
+
   render() {
     if (!this.state.hasError) {
       return this.props.children;
     }
 
     return (
-      <div className="min-h-screen bg-[#f3f5f8] dark:bg-[#0b1120] text-[#172536] dark:text-slate-100 flex items-center justify-center p-6">
+      <div className="min-h-dvh bg-[#f3f5f8] dark:bg-[#0b1120] text-[#172536] dark:text-slate-100 flex items-center justify-center p-6">
         <div className="max-w-lg w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 sm:p-8 shadow-xl space-y-5">
           <div className="flex items-center gap-3">
             <div className="p-3 rounded-2xl bg-red-100 dark:bg-red-950/60 text-red-700 dark:text-red-300">
@@ -102,11 +118,11 @@ export class ErrorBoundary extends React.Component<
             </button>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => void this.handleClearCacheAndReload()}
               className="flex-1 min-h-12 px-4 bg-[#14263d] hover:bg-[#1d3552] text-white rounded-xl text-xs sm:text-sm font-bold flex items-center justify-center gap-2 cursor-pointer"
             >
               <RefreshCw size={16} />
-              Recarregar aplicativo
+              Atualizar e recarregar
             </button>
           </div>
         </div>

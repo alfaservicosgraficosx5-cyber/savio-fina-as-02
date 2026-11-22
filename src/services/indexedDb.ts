@@ -10,6 +10,7 @@ import {
   AuditLogEntry,
   TransactionReversalRecord,
 } from '../types';
+import type { StoredBankNotificationRecord } from '../domain/notifications/notification.types';
 
 export interface StoredFileRecord {
   id: string;
@@ -44,6 +45,12 @@ export interface RecoveryBackupRecord {
   schemaVersion: number;
 }
 
+export interface StoredCryptoKeyRecord {
+  id: string;
+  key: CryptoKey;
+  createdAt: string;
+}
+
 export class SavioFinanaDatabase extends Dexie {
   transactions!: Table<Transaction, string>;
   accounts!: Table<Account, string>;
@@ -58,6 +65,8 @@ export class SavioFinanaDatabase extends Dexie {
   recovery!: Table<RecoveryBackupRecord, string>;
   auditLogs!: Table<AuditLogEntry, string>;
   reversals!: Table<TransactionReversalRecord, string>;
+  bankNotificationEvents!: Table<StoredBankNotificationRecord, string>;
+  cryptoKeys!: Table<StoredCryptoKeyRecord, string>;
 
   constructor() {
     super('SavioFinanaDB');
@@ -89,6 +98,25 @@ export class SavioFinanaDatabase extends Dexie {
       recovery: 'id, key, createdAt',
       auditLogs: 'id, action, entityType, entityId, timestamp',
       reversals: 'id, originalTransactionId, reversalTransactionId, timestamp',
+    });
+
+    this.version(3).stores({
+      transactions: 'id, entityId, accountId, date, category, status, externalId, transferId',
+      accounts: 'id, entityId, archived',
+      creditCards: 'id, entityId, status',
+      boletos: 'id, entityId, status, vencimento',
+      debts: 'id, entityId, status',
+      assets: 'id, entityId, assetType',
+      documents: 'id, type, status, fileId',
+      files: 'id, documentId, mimeType, createdAt',
+      settings: 'key',
+      backups: 'id, reason, createdAt',
+      recovery: 'id, key, createdAt',
+      auditLogs: 'id, action, entityType, entityId, timestamp',
+      reversals: 'id, originalTransactionId, reversalTransactionId, timestamp',
+      bankNotificationEvents:
+        'id, status, sourceEventKey, fingerprintHash, packageName, receivedAt, retentionExpiresAt',
+      cryptoKeys: 'id',
     });
   }
 }

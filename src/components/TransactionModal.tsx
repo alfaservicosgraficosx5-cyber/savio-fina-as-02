@@ -22,6 +22,7 @@ import {
 import { formatDateBR, todayLocal } from '../utils/dateUtils';
 import { loadDraft, saveDraft, clearDraft } from '../core/lifecycle/draftPreserver';
 import { MoneyInputField } from './MoneyInputField';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 import { X, Check, AlertCircle, Repeat } from 'lucide-react';
 
 interface TransactionModalProps {
@@ -63,6 +64,19 @@ export const TransactionModal: React.FC<TransactionModalProps> = ({
   const [restoredDraftBanner, setRestoredDraftBanner] = useState(false);
 
   const DRAFT_KEY = 'transaction_modal_new';
+
+  useLockBodyScroll(isOpen);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
 
   useEffect(() => {
     if (!isOpen) return;

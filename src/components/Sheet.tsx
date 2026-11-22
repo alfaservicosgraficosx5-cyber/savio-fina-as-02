@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useLockBodyScroll } from '../hooks/useLockBodyScroll';
 
 interface SheetProps {
   open: boolean;
@@ -26,6 +27,8 @@ export const Sheet: React.FC<SheetProps> = ({
   maxWidthClass = 'md:max-w-md',
   headerVariant = 'navy',
 }) => {
+  useLockBodyScroll(open);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (e: KeyboardEvent) => {
@@ -83,7 +86,7 @@ export const Sheet: React.FC<SheetProps> = ({
           </button>
         </header>
 
-        <div className="p-5 overflow-y-auto flex-1 space-y-4 pb-[calc(20px+env(safe-area-inset-bottom))]">
+        <div className="p-5 overflow-y-auto overscroll-contain flex-1 space-y-4 pb-[calc(20px+env(safe-area-inset-bottom))]">
           {children}
         </div>
 

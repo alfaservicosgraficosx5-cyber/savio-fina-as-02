@@ -16,14 +16,20 @@ import {
   FolderOpen,
   LineChart,
   Banknote,
+  BellRing,
 } from 'lucide-react';
 
 interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
+  pendingBankNotificationsCount?: number;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) => {
+export const Sidebar: React.FC<SidebarProps> = ({
+  currentTab,
+  setCurrentTab,
+  pendingBankNotificationsCount = 0,
+}) => {
   const menuItems = [
     { id: 'dashboard', label: 'Visão executiva', icon: LayoutDashboard, section: 'GESTÃO' },
     { id: 'cpf', label: 'Pessoal · CPF', icon: User, section: 'FINANÇAS' },
@@ -38,6 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
     { id: 'assets', label: 'Patrimônio e ativos', icon: TrendingUp, section: 'FINANÇAS' },
     { id: 'documents', label: 'Leitor & Scanner IA', icon: FileSearch, section: 'INTELIGÊNCIA' },
     { id: 'imports', label: 'Extratos & Importação', icon: FolderOpen, section: 'INTELIGÊNCIA' },
+    { id: 'notifications', label: 'Notificações · Banco', icon: BellRing, section: 'INTELIGÊNCIA' },
     { id: 'ai', label: 'IA Financeira', icon: Bot, section: 'INTELIGÊNCIA' },
     { id: 'reports', label: 'Relatórios gerenciais', icon: FileText, section: 'INTELIGÊNCIA' },
     { id: 'settings', label: 'Configurações', icon: Settings, section: 'SISTEMA' },
@@ -90,7 +97,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentTab, setCurrentTab }) =
                 }`}
               >
                 <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-[#a9bed3]'}`} />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate flex-1 text-left">{item.label}</span>
+                {item.id === 'notifications' && pendingBankNotificationsCount > 0 && (
+                  <span className="text-[11px] font-bold tabular-nums text-emerald-300">
+                    {pendingBankNotificationsCount}
+                  </span>
+                )}
               </button>
             </React.Fragment>
           );

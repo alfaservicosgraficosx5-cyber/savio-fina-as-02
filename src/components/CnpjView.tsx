@@ -360,7 +360,7 @@ export const CnpjView: React.FC<CnpjViewProps> = ({
         ) : !isDesktop ? (
           <VirtualCardList
             items={filtered}
-            itemHeight={116}
+            itemHeight={156}
             getKey={(t) => t.id}
             className="divide-y divide-slate-100 dark:divide-slate-800"
             renderItem={(t) => {
