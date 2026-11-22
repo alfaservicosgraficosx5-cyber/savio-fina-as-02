@@ -3,7 +3,8 @@ import { EntityScope, Boleto } from '../types';
 import { calculateCountdown } from '../utils/countdown';
 import { PeriodOption } from '../utils/dateUtils';
 import { PWAInstallButton } from './PWAInstallButton';
-import { Bell, ShieldCheck, UserCheck, Building, Sun, Moon, Plus, X } from 'lucide-react';
+import { Bell, ShieldCheck, UserCheck, Building, Sun, Moon, Plus, X, Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
+import type { SyncStatus } from '../services/cloudSyncService';
 
 interface HeaderProps {
   currentTab: string;
@@ -17,6 +18,8 @@ interface HeaderProps {
   onToggleTheme: () => void;
   boletos: Boleto[];
   onNavigate: (tab: string) => void;
+  syncStatus?: SyncStatus;
+  pendingSyncCount?: number;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -31,6 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleTheme,
   boletos,
   onNavigate,
+  syncStatus = 'IDLE',
+  pendingSyncCount = 0,
 }) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -109,6 +114,33 @@ export const Header: React.FC<HeaderProps> = ({
           </select>
 
           <PWAInstallButton compact />
+
+          {/* Cloud sync compact indicator */}
+          <button
+            type="button"
+            onClick={() => onNavigate('settings')}
+            title="Ver status de sincronização e backup"
+            aria-label="Status da sincronização com a nuvem"
+            className="min-w-10 min-h-10 px-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
+          >
+            {syncStatus === 'SYNCING' && (
+              <RefreshCw size={17} className="text-sky-600 dark:text-sky-400 animate-spin" />
+            )}
+            {syncStatus === 'SYNCED' && (
+              <Cloud size={17} className="text-emerald-600 dark:text-emerald-400" />
+            )}
+            {(syncStatus === 'PENDING_OFFLINE' || syncStatus === 'IDLE') && (
+              <CloudOff size={17} className="text-amber-600 dark:text-amber-400" />
+            )}
+            {(syncStatus === 'CONFLICT' || syncStatus === 'UNVERIFIED_EMAIL' || syncStatus === 'ERROR') && (
+              <AlertTriangle size={17} className="text-red-600 dark:text-red-400" />
+            )}
+            {pendingSyncCount > 0 && (
+              <span className="hidden sm:inline text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                {pendingSyncCount}
+              </span>
+            )}
+          </button>
 
           {/* Desktop Novo Lançamento */}
           <button

@@ -24,7 +24,15 @@ export function useOnlineStatus(): boolean {
   return isOnline;
 }
 
-export const OfflineIndicator: React.FC = () => {
+interface OfflineIndicatorProps {
+  cloudPendingCount?: number;
+  cloudSyncStatusMsg?: string | null;
+}
+
+export const OfflineIndicator: React.FC<OfflineIndicatorProps> = ({
+  cloudPendingCount = 0,
+  cloudSyncStatusMsg,
+}) => {
   const isOnline = useOnlineStatus();
   const [justReconnected, setJustReconnected] = useState(false);
   const [wasOffline, setWasOffline] = useState(false);
@@ -73,7 +81,9 @@ export const OfflineIndicator: React.FC = () => {
     }
   }, [isOnline, wasOffline]);
 
-  if (isOnline && !justReconnected && !syncResultMsg) return null;
+  const totalPending = queuedCount + cloudPendingCount;
+
+  if (isOnline && !justReconnected && !syncResultMsg && !cloudSyncStatusMsg) return null;
 
   if (!isOnline) {
     return (
@@ -84,8 +94,8 @@ export const OfflineIndicator: React.FC = () => {
       >
         <WifiOff size={16} className="shrink-0" />
         <span>
-          Modo Offline — Lançamentos locais salvos no dispositivo.
-          {queuedCount > 0 ? ` (${queuedCount} na fila de sincronização)` : ''}
+          Seus dados estão salvos neste dispositivo.
+          {totalPending > 0 ? ` (${totalPending} alteração(ões) aguardando sincronização)` : ''}
         </span>
       </div>
     );
@@ -97,8 +107,12 @@ export const OfflineIndicator: React.FC = () => {
       aria-live="polite"
       className="fixed bottom-[calc(76px+env(safe-area-inset-bottom))] md:bottom-4 left-4 z-40 flex items-center gap-2 rounded-xl bg-emerald-600 text-white px-3.5 py-2 text-xs font-bold shadow-lg"
     >
-      {syncResultMsg ? <RefreshCw size={15} className="shrink-0" /> : <Wifi size={15} className="shrink-0" />}
-      <span>{syncResultMsg || 'Conexão restabelecida.'}</span>
+      {syncResultMsg || cloudSyncStatusMsg ? (
+        <RefreshCw size={15} className="shrink-0" />
+      ) : (
+        <Wifi size={15} className="shrink-0" />
+      )}
+      <span>{cloudSyncStatusMsg || syncResultMsg || 'Conexão restabelecida.'}</span>
     </div>
   );
 };

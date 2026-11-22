@@ -40,9 +40,19 @@ import {
   Lock,
   Unlock,
   KeyRound,
+  Cloud,
+  CloudUpload,
+  LogOut,
+  UserX,
+  MailCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { PWAInstallButton } from './PWAInstallButton';
+import type { AuthUserSummary } from '../services/authService';
+import type { CloudBackupSnapshotMeta } from '../services/cloudBackupService';
+import type { SyncStatus } from '../services/cloudSyncService';
+import { validateBackupWithDryRun } from '../services/dataProtectionService';
 
 interface SettingsViewProps {
   dataset: AppDataset;
@@ -55,7 +65,7 @@ interface SettingsViewProps {
     mode: 'replace' | 'merge'
   ) => { ok: boolean; error?: string } | void;
   onRestoreSnapshot: () => void;
-  onResetData: () => void;
+  onResetData: () => { ok: boolean; error?: string } | void;
   theme: 'light' | 'dark';
   setTheme: (theme: 'light' | 'dark') => void;
   density: 'compact' | 'standard' | 'enlarged';
@@ -66,6 +76,24 @@ interface SettingsViewProps {
   onEnableVaultPin?: (pin: string) => Promise<{ ok: boolean; error?: string }>;
   onDisableVaultPin?: (pin: string) => Promise<{ ok: boolean; error?: string }>;
   onLockVault?: () => void;
+  currentUser?: AuthUserSummary | null;
+  syncStatus?: SyncStatus;
+  syncStatusMessage?: string;
+  lastSyncedAt?: string | null;
+  pendingSyncCount?: number;
+  hasSyncConflict?: boolean;
+  cloudBackups?: CloudBackupSnapshotMeta[];
+  cloudBackupBusy?: boolean;
+  onSyncNow?: () => Promise<void>;
+  onOpenSyncConflict?: () => void;
+  onCreateCloudBackup?: () => Promise<{ ok: boolean; error?: string }>;
+  onRestoreCloudBackup?: (backup: CloudBackupSnapshotMeta) => Promise<{ ok: boolean; error?: string }>;
+  onRefreshCloudBackups?: () => Promise<void>;
+  onResendVerificationEmail?: () => Promise<{ ok: boolean; error?: string }>;
+  onRefreshEmailVerification?: () => Promise<void>;
+  onSignOut?: () => Promise<void>;
+  onClearLocalWorkspace?: () => void;
+  onDeleteAccount?: () => Promise<{ ok: boolean; error?: string }>;
 }
 
 export const SettingsView: React.FC<SettingsViewProps> = ({
@@ -87,6 +115,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onEnableVaultPin,
   onDisableVaultPin,
   onLockVault,
+  currentUser,
+  syncStatus = 'IDLE',
+  syncStatusMessage,
+  lastSyncedAt,
+  pendingSyncCount = 0,
+  hasSyncConflict = false,
+  cloudBackups = [],
+  cloudBackupBusy = false,
+  onSyncNow,
+  onOpenSyncConflict,
+  onCreateCloudBackup,
+  onRestoreCloudBackup,
+  onRefreshCloudBackups,
+  onResendVerificationEmail,
+  onRefreshEmailVerification,
+  onSignOut,
+  onClearLocalWorkspace,
+  onDeleteAccount,
 }) => {
   const [importPreview, setImportPreview] = useState<ParsedBackupPreview | null>(null);
   const [importFileName, setImportFileName] = useState('');
@@ -97,6 +143,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     listCorruptBackups()
   );
   const [resetSheetOpen, setResetSheetOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState('');
+  const [deleteAccountSheetOpen, setDeleteAccountSheetOpen] = useState(false);
+  const [deleteAccountConfirmText, setDeleteAccountConfirmText] = useState('');
+  const [accountActionMsg, setAccountActionMsg] = useState('');
+  const [accountActionError, setAccountActionError] = useState('');
   const [vaultPinInput, setVaultPinInput] = useState('');
   const [vaultPinConfirm, setVaultPinConfirm] = useState('');
   const [vaultMsg, setVaultMsg] = useState('');
@@ -141,6 +192,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       if (!parsed.valid) {
         setImportPreview(null);
         setBackupError(parsed.error || 'Arquivo de backup inválido.');
+        return;
+      }
+      const dryRun = validateBackupWithDryRun(content);
+      if (!dryRun.valid) {
+        setImportPreview(null);
+        setBackupError(
+          dryRun.error || 'Não foi possível validar o backup. Seus dados originais foram preservados.'
+        );
         return;
       }
       setImportPreview(parsed);
@@ -240,6 +299,213 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
         <PWAInstallButton />
       </div>
+
+      {/* Cloud Account, Sync Status & Cloud Backups (Dual Backup) */}
+      {currentUser && (
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-xs space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-bold text-[#14263d] dark:text-white flex items-center gap-2">
+                <Cloud className="w-4 h-4 text-emerald-600" /> Conta, Nuvem & Backup Duplo
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Conectado como <strong className="text-slate-800 dark:text-slate-200">{currentUser.displayName}</strong> ({currentUser.email})
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {onSyncNow && (
+                <button
+                  type="button"
+                  disabled={syncStatus === 'SYNCING'}
+                  onClick={() => void onSyncNow()}
+                  className="px-4 min-h-10 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw size={14} className={syncStatus === 'SYNCING' ? 'animate-spin' : ''} />
+                  Sincronizar agora
+                </button>
+              )}
+              {onCreateCloudBackup && (
+                <button
+                  type="button"
+                  disabled={cloudBackupBusy || !currentUser.emailVerified}
+                  onClick={async () => {
+                    setAccountActionError('');
+                    setAccountActionMsg('');
+                    const res = await onCreateCloudBackup();
+                    if (!res.ok) {
+                      setAccountActionError(res.error || 'Falha ao gerar backup na nuvem.');
+                    } else {
+                      setAccountActionMsg('Snapshot validado e salvo na nuvem (retenção dos 5 mais recentes).');
+                    }
+                  }}
+                  className="px-4 min-h-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-60"
+                >
+                  <CloudUpload size={14} /> {cloudBackupBusy ? 'Salvando...' : 'Criar backup na nuvem'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700">
+              <div className="text-[11px] text-slate-400">Status da sincronização</div>
+              <div className="font-bold text-[#14263d] dark:text-white mt-0.5">
+                {syncStatusMessage ||
+                  (syncStatus === 'SYNCED'
+                    ? 'Sincronização com a nuvem concluída.'
+                    : syncStatus === 'PENDING_OFFLINE'
+                    ? 'Existem alterações aguardando sincronização.'
+                    : 'Seus dados estão salvos neste dispositivo.')}
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700">
+              <div className="text-[11px] text-slate-400">Última sincronização</div>
+              <div className="font-bold text-[#14263d] dark:text-white mt-0.5">
+                {lastSyncedAt ? new Date(lastSyncedAt).toLocaleString('pt-BR') : 'Ainda não sincronizado'}
+              </div>
+            </div>
+            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700">
+              <div className="text-[11px] text-slate-400">Último backup na nuvem</div>
+              <div className="font-bold text-[#14263d] dark:text-white mt-0.5">
+                {cloudBackups[0]
+                  ? new Date(cloudBackups[0].createdAt).toLocaleString('pt-BR')
+                  : 'Nenhum snapshot na nuvem'}
+              </div>
+              {pendingSyncCount > 0 && (
+                <div className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold mt-0.5">
+                  {pendingSyncCount} pendência(s) na fila offline
+                </div>
+              )}
+            </div>
+          </div>
+
+          {!currentUser.emailVerified && (
+            <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-start gap-2">
+                <MailCheck size={16} className="shrink-0 mt-0.5 text-amber-600" />
+                <span>
+                  Confirme seu endereço de e-mail para liberar a sincronização e backups automáticos na nuvem. Seus dados continuam salvos com segurança neste dispositivo.
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 shrink-0">
+                {onResendVerificationEmail && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await onResendVerificationEmail();
+                      if (res.ok) setAccountActionMsg('E-mail de verificação reenviado.');
+                      else if (res.error) setAccountActionError(res.error);
+                    }}
+                    className="px-3 min-h-9 rounded-lg bg-amber-600 text-white font-bold cursor-pointer"
+                  >
+                    Reenviar verificação
+                  </button>
+                )}
+                {onRefreshEmailVerification && (
+                  <button
+                    type="button"
+                    onClick={() => void onRefreshEmailVerification()}
+                    className="px-3 min-h-9 rounded-lg bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 font-bold cursor-pointer"
+                  >
+                    Já verifiquei
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {hasSyncConflict && onOpenSyncConflict && (
+            <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-800 dark:text-red-200 flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold flex items-center gap-2">
+                <AlertTriangle size={16} /> Existe um conflito de dados entre este dispositivo e a nuvem aguardando escolha.
+              </span>
+              <button
+                type="button"
+                onClick={onOpenSyncConflict}
+                className="px-3.5 min-h-9 rounded-lg bg-red-600 hover:bg-red-700 text-white font-bold cursor-pointer"
+              >
+                Resolver conflito
+              </button>
+            </div>
+          )}
+
+          {accountActionMsg && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <CheckCircle2 size={15} className="shrink-0" />
+              <span>{accountActionMsg}</span>
+            </div>
+          )}
+
+          {accountActionError && (
+            <div className="p-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-xl text-xs font-semibold flex items-center gap-2">
+              <AlertCircle size={15} className="shrink-0" />
+              <span>{accountActionError}</span>
+            </div>
+          )}
+
+          {/* Cloud Backup History (Max 5 versions) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-slate-600 dark:text-slate-300">
+              <span>Snapshots salvos na nuvem ({cloudBackups.length}/5)</span>
+              {onRefreshCloudBackups && (
+                <button
+                  type="button"
+                  onClick={() => void onRefreshCloudBackups()}
+                  className="text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+                >
+                  Atualizar lista
+                </button>
+              )}
+            </div>
+            {cloudBackups.length === 0 ? (
+              <p className="text-xs text-slate-400">
+                Nenhum snapshot na nuvem criado ainda. Clique em "Criar backup na nuvem" para salvar a primeira versão.
+              </p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                {cloudBackups.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 bg-slate-50/70 dark:bg-slate-800/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="font-bold text-[#14263d] dark:text-white">
+                        {new Date(item.createdAt).toLocaleString('pt-BR')} · {item.deviceLabel}
+                      </div>
+                      <div className="text-slate-500 dark:text-slate-400">
+                        {item.counts.accounts} conta(s) · {item.counts.transactions} lançamento(s) · Hash{' '}
+                        <span className="font-mono">{item.integrityHash.slice(0, 14)}</span>
+                      </div>
+                    </div>
+                    {onRestoreCloudBackup && (
+                      <button
+                        type="button"
+                        disabled={cloudBackupBusy}
+                        onClick={async () => {
+                          setAccountActionError('');
+                          setAccountActionMsg('');
+                          const res = await onRestoreCloudBackup(item);
+                          if (!res.ok) {
+                            setAccountActionError(res.error || 'Falha ao restaurar snapshot da nuvem.');
+                          } else {
+                            setAccountActionMsg(
+                              'Snapshot da nuvem restaurado com validação de integridade (cópia local anterior preservada).'
+                            );
+                          }
+                        }}
+                        className="px-3 min-h-9 rounded-lg bg-[#14263d] hover:bg-[#1d3552] text-white font-bold cursor-pointer shrink-0 disabled:opacity-60"
+                      >
+                        Restaurar esta versão
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Ergonomics & Appearance Card */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-xs space-y-6">
@@ -721,54 +987,185 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </p>
         </div>
 
-        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
-          <h3 className="text-sm font-bold text-[#14263d] dark:text-white flex items-center gap-2 mb-2">
-            <RefreshCw className="w-4 h-4 text-slate-500" /> Reinicialização Segura
-          </h3>
-          <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed mb-4">
-            Ao restaurar os dados iniciais de demonstração, um snapshot automático dos seus registros atuais é salvo antes da limpeza para permitir reversão imediata.
-          </p>
-          <button
-            type="button"
-            onClick={() => setResetSheetOpen(true)}
-            className="px-4 min-h-11 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer"
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Restaurar dados iniciais de demonstração
-          </button>
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#14263d] dark:text-white flex items-center gap-2 mb-1">
+              <RefreshCw className="w-4 h-4 text-slate-500" /> Gerenciamento de Sessão, Cache & Reinicialização
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              Ações separadas por impacto para evitar perda acidental de dados:
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2.5">
+            {onSignOut && (
+              <button
+                type="button"
+                onClick={() => void onSignOut()}
+                className="px-4 min-h-11 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <LogOut className="w-4 h-4" /> Sair da conta (mantém nuvem intacta)
+              </button>
+            )}
+
+            {onClearLocalWorkspace && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClearLocalWorkspace();
+                  setAccountActionMsg(
+                    'Cache local limpo após backup automático. Seus dados na nuvem permanecem intactos.'
+                  );
+                }}
+                className="px-4 min-h-11 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <Database className="w-4 h-4" /> Limpar dados locais deste aparelho
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={() => {
+                setResetConfirmText('');
+                setResetSheetOpen(true);
+              }}
+              className="px-4 min-h-11 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 hover:bg-amber-100 text-amber-900 dark:text-amber-200 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className="w-4 h-4" /> Reiniciar dados financeiros (zerar)
+            </button>
+
+            {onDeleteAccount && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteAccountConfirmText('');
+                  setDeleteAccountSheetOpen(true);
+                }}
+                className="px-4 min-h-11 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-800 hover:bg-red-100 text-red-700 dark:text-red-300 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer"
+              >
+                <UserX className="w-4 h-4" /> Excluir conta definitivamente
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Multi-step Reset to Empty Sheet */}
       <Sheet
         open={resetSheetOpen}
         onClose={() => setResetSheetOpen(false)}
-        title="Confirmar reinicialização segura"
-        subtitle="Um snapshot automático dos seus dados atuais será salvo antes da limpeza"
+        title="Confirmar reinicialização para estado vazio"
+        subtitle="Um backup local validado será criado antes de zerar os registros financeiros."
         headerVariant="danger"
       >
-        <p className="text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
-          Esta ação substituirá os lançamentos, contas, cartões, boletos, dívidas e documentos atuais pelos dados iniciais de demonstração.
-        </p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Se precisar desfazer, o botão <strong>Restaurar snapshot anterior</strong> ficará disponível nesta tela imediatamente após o reset.
-        </p>
-        <div className="flex gap-3 pt-2">
-          <button
-            type="button"
-            onClick={() => setResetSheetOpen(false)}
-            className="flex-1 min-h-12 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setResetSheetOpen(false);
-              onResetData();
-            }}
-            className="flex-[1.4] min-h-12 bg-red-600 hover:bg-red-700 text-white rounded-xl text-sm font-bold cursor-pointer"
-          >
-            Criar snapshot e resetar
-          </button>
+        <div className="space-y-4">
+          <div className="p-3.5 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 text-xs text-red-800 dark:text-red-200 space-y-1">
+            <div className="font-bold">O que será zerado:</div>
+            <div>
+              Contas ({currentCounts.accounts}), lançamentos ({currentCounts.transactions}), cartões ({currentCounts.creditCards}), boletos ({currentCounts.boletos}), dívidas ({currentCounts.debts}), patrimônio ({currentCounts.assets}), documentos ({currentCounts.documents}), salários, orçamentos e regras.
+            </div>
+            <div className="pt-1 font-semibold">
+              Nenhum dado fictício ou demonstrativo será recriado: o aplicativo voltará ao estado totalmente vazio.
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="confirm-reset-text"
+              className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1"
+            >
+              Digite <strong>ZERAR</strong> para confirmar após o backup automático:
+            </label>
+            <input
+              id="confirm-reset-text"
+              type="text"
+              value={resetConfirmText}
+              onChange={(e) => setResetConfirmText(e.target.value)}
+              placeholder="ZERAR"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-red-500"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setResetSheetOpen(false)}
+              className="flex-1 min-h-12 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={resetConfirmText.trim().toUpperCase() !== 'ZERAR'}
+              onClick={() => {
+                setResetSheetOpen(false);
+                const res = onResetData();
+                if (res && !res.ok && res.error) {
+                  setBackupError(res.error);
+                }
+              }}
+              className="flex-[1.4] min-h-12 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold cursor-pointer"
+            >
+              Validar backup e zerar dados
+            </button>
+          </div>
+        </div>
+      </Sheet>
+
+      {/* Permanent Account Deletion Sheet */}
+      <Sheet
+        open={deleteAccountSheetOpen}
+        onClose={() => setDeleteAccountSheetOpen(false)}
+        title="Excluir conta e dados da nuvem"
+        subtitle="Esta ação remove seu usuário do Firebase Authentication e todos os dados salvos na nuvem."
+        headerVariant="danger"
+      >
+        <div className="space-y-4">
+          <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 leading-relaxed">
+            Recomendamos exportar um backup (.json) antes de prosseguir. Todos os seus documentos financeiros em <span className="font-mono">users/{currentUser?.uid || ''}</span> e snapshots na nuvem serão removidos permanentemente.
+          </p>
+
+          <div>
+            <label
+              htmlFor="confirm-delete-account-text"
+              className="block text-xs font-semibold text-slate-600 dark:text-slate-300 mb-1"
+            >
+              Digite <strong>EXCLUIR</strong> para confirmar:
+            </label>
+            <input
+              id="confirm-delete-account-text"
+              type="text"
+              value={deleteAccountConfirmText}
+              onChange={(e) => setDeleteAccountConfirmText(e.target.value)}
+              placeholder="EXCLUIR"
+              className="w-full border border-slate-200 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-white outline-none focus:border-red-500"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-1">
+            <button
+              type="button"
+              onClick={() => setDeleteAccountSheetOpen(false)}
+              className="flex-1 min-h-12 border border-slate-300 dark:border-slate-700 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={deleteAccountConfirmText.trim().toUpperCase() !== 'EXCLUIR' || !onDeleteAccount}
+              onClick={async () => {
+                if (!onDeleteAccount) return;
+                setDeleteAccountSheetOpen(false);
+                const res = await onDeleteAccount();
+                if (!res.ok && res.error) {
+                  setAccountActionError(res.error);
+                }
+              }}
+              className="flex-[1.4] min-h-12 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-sm font-bold cursor-pointer"
+            >
+              Confirmar exclusão da conta
+            </button>
+          </div>
         </div>
       </Sheet>
     </div>

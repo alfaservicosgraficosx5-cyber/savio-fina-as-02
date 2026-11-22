@@ -44,6 +44,8 @@ export interface FullBackupPayload {
   backupVersion: number;
   schemaVersion: number;
   exportedAt: string;
+  ownerUid?: string;
+  integrityHash?: string;
   fileReferences?: FileReferenceInfo[];
   data: AppDataset;
 }
@@ -63,6 +65,10 @@ export interface BackupSummaryCounts {
   debts: number;
   assets: number;
   documents: number;
+  salarySources?: number;
+  salaryRecords?: number;
+  budgets?: number;
+  categoryRules?: number;
 }
 
 export interface ParsedBackupPreview {
@@ -74,6 +80,7 @@ export interface ParsedBackupPreview {
   periodRange?: { start: string; end: string } | null;
   duplicateTransactionsCount?: number;
   duplicateAccountsCount?: number;
+  integrityVerified?: boolean;
 }
 
 export function sanitizeDocumentsForMetadata(docs: DocumentItem[]): DocumentItem[] {
@@ -97,37 +104,81 @@ export function sanitizeDocumentsForMetadata(docs: DocumentItem[]): DocumentItem
   });
 }
 
-export function buildFullBackup(
-  dataset: AppDataset,
-  fileReferences?: FileReferenceInfo[],
-  exportedAt = new Date().toISOString()
-): FullBackupPayload {
+function stableNormalizeDatasetForHash(dataset: AppDataset): Record<string, unknown> {
   return {
-    app: 'FINANCE_IA',
-    backupVersion: 1,
-    schemaVersion: STORAGE_SCHEMA_VERSION,
-    exportedAt,
-    fileReferences,
-    data: {
-      accounts: dataset.accounts,
-      transactions: dataset.transactions,
-      creditCards: dataset.creditCards,
-      boletos: dataset.boletos,
-      debts: dataset.debts,
-      assets: dataset.assets,
-      documents: sanitizeDocumentsForMetadata(dataset.documents),
-      ...(dataset.salaries ? { salaries: dataset.salaries } : {}),
-      ...(Array.isArray(dataset.budgets) ? { budgets: dataset.budgets } : {}),
-      ...(Array.isArray(dataset.categoryRules) ? { categoryRules: dataset.categoryRules } : {}),
-      // Only visual preferences — zero API keys, tokens, or credentials
-      settings: dataset.settings,
-    },
+    accounts: dataset.accounts || [],
+    transactions: dataset.transactions || [],
+    creditCards: dataset.creditCards || [],
+    boletos: dataset.boletos || [],
+    debts: dataset.debts || [],
+    assets: dataset.assets || [],
+    documents: sanitizeDocumentsForMetadata(dataset.documents || []),
+    salaries: dataset.salaries ?? { sources: [], records: [], adjustments: [] },
+    budgets: dataset.budgets ?? [],
+    categoryRules: dataset.categoryRules ?? [],
+    settings: dataset.settings ?? null,
   };
 }
 
-export async function buildFullBackupWithFileRefs(dataset: AppDataset): Promise<FullBackupPayload> {
+/**
+ * Computes a deterministic dual-lane 64-bit hex fingerprint for backup integrity validation.
+ * Works synchronously in browsers, Android WebView, Node, and Vitest without native dependencies.
+ */
+export function computeDatasetChecksum(dataset: AppDataset): string {
+  const canonical = JSON.stringify(stableNormalizeDatasetForHash(dataset));
+  let h1 = 0x811c9dc5;
+  let h2 = 0x9e3779b9;
+  for (let i = 0; i < canonical.length; i++) {
+    const code = canonical.charCodeAt(i);
+    h1 ^= code;
+    h1 = Math.imul(h1, 0x01000193);
+    h2 ^= code + (i & 0xff);
+    h2 = Math.imul(h2, 0x85ebca6b);
+  }
+  const part1 = (h1 >>> 0).toString(16).padStart(8, '0');
+  const part2 = (h2 >>> 0).toString(16).padStart(8, '0');
+  return `fnv1a64-${part1}${part2}-${canonical.length}`;
+}
+
+export function buildFullBackup(
+  dataset: AppDataset,
+  fileReferences?: FileReferenceInfo[],
+  exportedAt = new Date().toISOString(),
+  ownerUid?: string
+): FullBackupPayload {
+  const normalizedData: AppDataset = {
+    accounts: dataset.accounts,
+    transactions: dataset.transactions,
+    creditCards: dataset.creditCards,
+    boletos: dataset.boletos,
+    debts: dataset.debts,
+    assets: dataset.assets,
+    documents: sanitizeDocumentsForMetadata(dataset.documents),
+    ...(dataset.salaries ? { salaries: dataset.salaries } : {}),
+    ...(Array.isArray(dataset.budgets) ? { budgets: dataset.budgets } : {}),
+    ...(Array.isArray(dataset.categoryRules) ? { categoryRules: dataset.categoryRules } : {}),
+    // Only visual preferences — zero API keys, tokens, or credentials
+    settings: dataset.settings,
+  };
+
+  return {
+    app: 'FINANCE_IA',
+    backupVersion: 2,
+    schemaVersion: STORAGE_SCHEMA_VERSION,
+    exportedAt,
+    ...(ownerUid ? { ownerUid } : {}),
+    integrityHash: computeDatasetChecksum(normalizedData),
+    fileReferences,
+    data: normalizedData,
+  };
+}
+
+export async function buildFullBackupWithFileRefs(
+  dataset: AppDataset,
+  ownerUid?: string
+): Promise<FullBackupPayload> {
   const fileRefs = await fileStorageService.listFileReferences();
-  return buildFullBackup(dataset, fileRefs);
+  return buildFullBackup(dataset, fileRefs, new Date().toISOString(), ownerUid);
 }
 
 export function getBackupCounts(dataset: AppDataset): BackupSummaryCounts {
@@ -139,6 +190,10 @@ export function getBackupCounts(dataset: AppDataset): BackupSummaryCounts {
     debts: dataset.debts.length,
     assets: dataset.assets.length,
     documents: dataset.documents.length,
+    salarySources: dataset.salaries?.sources.length ?? 0,
+    salaryRecords: dataset.salaries?.records.length ?? 0,
+    budgets: dataset.budgets?.length ?? 0,
+    categoryRules: dataset.categoryRules?.length ?? 0,
   };
 }
 
@@ -284,6 +339,37 @@ export function parseAndValidateBackup(
     settings: normalizedSettings,
   };
 
+  let integrityVerified = false;
+  if (typeof obj.integrityHash === 'string' && obj.integrityHash.trim()) {
+    const rawDatasetForHash: AppDataset = {
+      accounts: asArray<Account>(rawData.accounts),
+      transactions: asArray<Transaction>(rawData.transactions),
+      creditCards: asArray<CreditCard>(rawData.creditCards),
+      boletos: asArray<Boleto>(rawData.boletos),
+      debts: asArray<Debt>(rawData.debts),
+      assets: asArray<Asset>(rawData.assets),
+      documents: sanitizeDocumentsForMetadata(asArray<DocumentItem>(rawData.documents)),
+      ...(rawSalaries ? { salaries: rawSalaries } : {}),
+      ...(Array.isArray(rawData.budgets) ? { budgets: rawData.budgets as CategoryBudget[] } : {}),
+      ...(Array.isArray(rawData.categoryRules) ? { categoryRules: rawData.categoryRules as CategoryRule[] } : {}),
+      settings: normalizedSettings,
+    };
+    const expectedFromRaw = computeDatasetChecksum(rawDatasetForHash);
+    const expectedFromNorm = computeDatasetChecksum(normalizedData);
+    if (obj.integrityHash !== expectedFromRaw && obj.integrityHash !== expectedFromNorm) {
+      return {
+        valid: false,
+        warnings,
+        integrityVerified: false,
+        error:
+          'Hash de integridade divergente: o backup pode ter sido alterado ou corrompido. Restauração cancelada para proteger seus dados.',
+      };
+    }
+    integrityVerified = true;
+  } else {
+    warnings.push('Backup sem hash de integridade (versão v1); validação estrutural concluída.');
+  }
+
   // Compute covered date range
   const dates = rawTransactions
     .map((t) => t.date)
@@ -310,6 +396,11 @@ export function parseAndValidateBackup(
     backupVersion: typeof obj.backupVersion === 'number' ? obj.backupVersion : 1,
     schemaVersion: typeof obj.schemaVersion === 'number' ? obj.schemaVersion : 1,
     exportedAt: typeof obj.exportedAt === 'string' ? obj.exportedAt : new Date().toISOString(),
+    ...(typeof obj.ownerUid === 'string' ? { ownerUid: obj.ownerUid } : {}),
+    integrityHash:
+      typeof obj.integrityHash === 'string'
+        ? obj.integrityHash
+        : computeDatasetChecksum(normalizedData),
     fileReferences: Array.isArray(obj.fileReferences)
       ? (obj.fileReferences as FileReferenceInfo[])
       : undefined,
@@ -324,6 +415,7 @@ export function parseAndValidateBackup(
     periodRange,
     duplicateTransactionsCount,
     duplicateAccountsCount,
+    integrityVerified,
   };
 }
 
@@ -352,7 +444,10 @@ export function applyBackupDataset(
       incoming.boletos.length +
       incoming.debts.length +
       incoming.assets.length +
-      incoming.documents.length;
+      incoming.documents.length +
+      (incoming.budgets?.length ?? 0) +
+      (incoming.categoryRules?.length ?? 0) +
+      (incoming.salaries?.records.length ?? 0);
 
     return {
       next: {
@@ -424,13 +519,14 @@ export function applyBackupDataset(
 
 export function savePreOperationSnapshot(
   dataset: AppDataset,
-  reason: PreResetSnapshot['reason']
+  reason: PreResetSnapshot['reason'],
+  ownerUid?: string
 ): { snapshot: PreResetSnapshot; ok: boolean; error?: string } {
   const snapshot: PreResetSnapshot = {
     id: generateEntityId('snap'),
     savedAt: new Date().toISOString(),
     reason,
-    backup: buildFullBackup(dataset),
+    backup: buildFullBackup(dataset, undefined, new Date().toISOString(), ownerUid),
   };
 
   const res = saveJsonSafe(STORAGE_KEYS.preResetSnapshot, snapshot);
@@ -465,6 +561,17 @@ export function validateDatasetIntegrity(dataset: AppDataset): { ok: boolean; er
   });
   if (hasCorruptAmounts) {
     return { ok: false, error: 'Valores inválidos encontrados nos lançamentos restaurados.' };
+  }
+  const hasInvalidAccounts = dataset.accounts.some(
+    (a) =>
+      !a ||
+      typeof a.id !== 'string' ||
+      !a.id ||
+      typeof a.institutionName !== 'string' ||
+      typeof a.accountName !== 'string'
+  );
+  if (hasInvalidAccounts) {
+    return { ok: false, error: 'Contas com identificador ou nome inválido encontradas na restauração.' };
   }
   return { ok: true };
 }

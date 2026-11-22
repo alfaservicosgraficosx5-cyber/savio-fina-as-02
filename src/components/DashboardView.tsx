@@ -25,6 +25,8 @@ import {
   Plus,
 } from 'lucide-react';
 
+import type { SyncStatus } from '../services/cloudSyncService';
+
 interface DashboardViewProps {
   transactions: Transaction[];
   accounts: Account[];
@@ -33,6 +35,7 @@ interface DashboardViewProps {
   budgets?: CategoryBudget[];
   scope: EntityScope;
   period: string;
+  syncStatus?: SyncStatus;
   onNavigate: (tab: string, filter?: LedgerDrilldownFilter) => void;
   onOpenNew: () => void;
   onEditTransaction?: (tx: Transaction) => void;
@@ -48,6 +51,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   budgets = [],
   scope,
   period,
+  syncStatus,
   onNavigate,
   onOpenNew,
   onEditTransaction,
@@ -255,21 +259,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <Wallet size={15} />
               {scopeLabel}
             </span>
-            <div className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 tracking-tight">
-              R$ {formatCurrencyBRL(totalBalance)}
-            </div>
-            <p className="text-xs text-slate-300 mt-1">
-              Saldo realizado (inicial + confirmados em {scopedAccounts.length} conta
-              {scopedAccounts.length !== 1 ? 's' : ''}).
-              {Math.abs(projectedBalance - totalBalance) >= 0.01 && (
-                <span className="ml-1.5 text-amber-300 font-semibold">
-                  · Projetado: R$ {formatCurrencyBRL(projectedBalance)}
-                </span>
-              )}
-            </p>
-            {(Math.abs(pendingNet) >= 0.01 || Math.abs(plannedNet) >= 0.01) && (
-              <p className="text-[11px] text-slate-300/90 mt-0.5">
-                Pendentes no período: R$ {formatCurrencyBRL(pendingNet)} · Planejados: R$ {formatCurrencyBRL(plannedNet)}
+            {scopedAccounts.length === 0 ? (
+              <>
+                <div className="text-2xl sm:text-3xl font-extrabold text-white mt-1.5 tracking-tight">
+                  Nenhuma conta cadastrada
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  Cadastre sua primeira conta bancária ou importe um backup (.json) em Configurações para começar.
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="text-3xl sm:text-4xl font-extrabold text-white mt-1.5 tracking-tight">
+                  R$ {formatCurrencyBRL(totalBalance)}
+                </div>
+                <p className="text-xs text-slate-300 mt-1">
+                  Saldo realizado (inicial + confirmados em {scopedAccounts.length} conta
+                  {scopedAccounts.length !== 1 ? 's' : ''}).
+                  {Math.abs(projectedBalance - totalBalance) >= 0.01 && (
+                    <span className="ml-1.5 text-amber-300 font-semibold">
+                      · Projetado: R$ {formatCurrencyBRL(projectedBalance)}
+                    </span>
+                  )}
+                </p>
+                {(Math.abs(pendingNet) >= 0.01 || Math.abs(plannedNet) >= 0.01) && (
+                  <p className="text-[11px] text-slate-300/90 mt-0.5">
+                    Pendentes no período: R$ {formatCurrencyBRL(pendingNet)} · Planejados: R$ {formatCurrencyBRL(plannedNet)}
+                  </p>
+                )}
+              </>
+            )}
+            {(syncStatus === 'PENDING_OFFLINE' ||
+              syncStatus === 'UNVERIFIED_EMAIL' ||
+              syncStatus === 'CONFLICT') && (
+              <p className="text-[11px] text-amber-300 font-semibold mt-1.5">
+                Informação ainda não sincronizada com a nuvem — salva com segurança neste dispositivo.
               </p>
             )}
           </div>
@@ -280,7 +304,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               onClick={() => onNavigate('accounts')}
               className="px-4 min-h-11 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/15 transition-colors cursor-pointer"
             >
-              Ver contas ({scopedAccounts.length})
+              {scopedAccounts.length === 0 ? 'Cadastrar primeira conta' : `Ver contas (${scopedAccounts.length})`}
             </button>
             <button
               type="button"

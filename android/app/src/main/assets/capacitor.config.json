@@ -1,0 +1,11 @@
+{
+	"appId": "br.com.financeia.mobile",
+	"appName": "FINANCE IA",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	},
+	"android": {
+		"allowMixedContent": false
+	}
+}

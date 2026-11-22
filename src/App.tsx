@@ -72,6 +72,7 @@ import {
 } from './services/storage';
 import { fileStorageService } from './services/fileStorage';
 import {
+  AppDataset,
   FullBackupPayload,
   PreResetSnapshot,
   applyBackupDataset,
@@ -133,6 +134,40 @@ import {
   updateNotificationStatus,
 } from './services/notificationQueueService';
 import { RotateCcw, X } from 'lucide-react';
+import { AuthScreen } from './components/auth/AuthScreen';
+import { SyncConflictSheet } from './components/SyncConflictSheet';
+import {
+  deleteCurrentFirebaseUser,
+  reloadCurrentAuthUser,
+  resendVerificationEmail,
+  signOutAuthUser,
+  subscribeToAuthState,
+  type AuthUserSummary,
+} from './services/authService';
+import { testFirestoreConnection } from './services/firebaseClient';
+import {
+  enqueueCloudDatasetSync,
+  getLastSyncInfo,
+  getPendingCloudSyncCount,
+  purgeUserCloudData,
+  pushDatasetToFirestore,
+  reconcileCloudAndLocalOnLogin,
+  resolveSyncConflict,
+  subscribeUserCloudTransactions,
+  type ConflictResolutionStrategy,
+  type SyncConflictState,
+  type SyncStatus,
+} from './services/cloudSyncService';
+import {
+  createCloudBackupSnapshot,
+  listCloudBackups,
+  validateAndPrepareCloudRestore,
+  type CloudBackupSnapshotMeta,
+} from './services/cloudBackupService';
+import {
+  captureAndValidateExistingLocalBackup,
+  countDatasetRecords,
+} from './services/dataProtectionService';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -144,6 +179,20 @@ export default function App() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
   const [storageWarning, setStorageWarning] = useState<string | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AuthUserSummary | null>(null);
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('IDLE');
+  const [syncStatusMessage, setSyncStatusMessage] = useState<string>(
+    'Seus dados estão salvos neste dispositivo.'
+  );
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const [syncConflict, setSyncConflict] = useState<SyncConflictState | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const [cloudBackups, setCloudBackups] = useState<CloudBackupSnapshotMeta[]>([]);
+  const [cloudBackupBusy, setCloudBackupBusy] = useState(false);
+  const cloudHydratedForUidRef = useRef<string | null>(null);
+  const skipNextAutoSyncRef = useRef(false);
   const [vaultEnabled, setVaultEnabled] = useState<boolean>(() => isVaultEnabled());
   const [vaultKey, setVaultKey] = useState<CryptoKey | null>(null);
   const [pendingDeleteConfirm, setPendingDeleteConfirm] = useState<{
@@ -304,7 +353,7 @@ export default function App() {
         ...t,
         amountCents,
         amount,
-        accountId: match?.id || 'acc-1',
+        accountId: match?.id || '',
       };
     });
   });
@@ -649,7 +698,8 @@ export default function App() {
         categoryRules,
         settings: { theme, density, zoom },
       },
-      reason
+      reason,
+      currentUser?.uid
     );
     if (res.ok) {
       setPreResetSnapshot(res.snapshot);
@@ -658,6 +708,228 @@ export default function App() {
     }
     return res.snapshot;
   };
+
+  const currentFullDataset = useMemo(
+    () => ({
+      accounts,
+      transactions,
+      creditCards,
+      boletos,
+      debts,
+      assets,
+      documents,
+      salaries: salaryData,
+      budgets,
+      categoryRules,
+      settings: { theme, density, zoom },
+    }),
+    [
+      accounts,
+      transactions,
+      creditCards,
+      boletos,
+      debts,
+      assets,
+      documents,
+      salaryData,
+      budgets,
+      categoryRules,
+      theme,
+      density,
+      zoom,
+    ]
+  );
+
+  const latestDatasetRef = useRef(currentFullDataset);
+  latestDatasetRef.current = currentFullDataset;
+
+  const applyRestoredDataset = useCallback(
+    (nextData: AppDataset) => {
+      skipNextAutoSyncRef.current = true;
+      setAccounts(nextData.accounts);
+      setTransactions(nextData.transactions);
+      setCreditCards(nextData.creditCards);
+      setBoletos(nextData.boletos);
+      setDebts(nextData.debts);
+      setAssets(nextData.assets);
+      setDocuments(nextData.documents);
+      setSalaryData(nextData.salaries ?? EMPTY_SALARY_DATASET);
+      setBudgets(nextData.budgets ?? []);
+      setCategoryRules(nextData.categoryRules ?? []);
+      if (nextData.settings) {
+        if (nextData.settings.theme) setTheme(nextData.settings.theme);
+        if (nextData.settings.density) setDensity(nextData.settings.density);
+        if (nextData.settings.zoom) setZoom(nextData.settings.zoom);
+      }
+    },
+    []
+  );
+
+  const refreshCloudBackupsList = useCallback(async (uid: string) => {
+    try {
+      const list = await listCloudBackups(uid);
+      setCloudBackups(list);
+    } catch {
+      // ignore read failure when offline or unverified
+    }
+  }, []);
+
+  const runCloudReconciliation = useCallback(
+    async (user: AuthUserSummary) => {
+      const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+      setSyncStatus('SYNCING');
+      setSyncStatusMessage('Sincronizando dados com a nuvem...');
+      const info = await getLastSyncInfo(user.uid);
+      setLastSyncedAt(info.lastSyncedAt);
+
+      if (online) {
+        await testFirestoreConnection();
+      }
+
+      const res = await reconcileCloudAndLocalOnLogin({
+        user,
+        localDataset: latestDatasetRef.current,
+        isOnline: online,
+      });
+
+      setSyncStatus(res.status);
+      setSyncStatusMessage(res.statusMessage);
+      if (res.lastSyncedAt) {
+        setLastSyncedAt(res.lastSyncedAt);
+      }
+
+      if (res.outcome === 'PULLED_CLOUD' && res.dataset) {
+        applyRestoredDataset(res.dataset);
+        cloudHydratedForUidRef.current = user.uid;
+      } else if (
+        res.outcome === 'EMPTY_BOTH' ||
+        res.outcome === 'MIGRATED_LOCAL' ||
+        res.outcome === 'SYNCED_MATCH'
+      ) {
+        cloudHydratedForUidRef.current = user.uid;
+      } else if (res.outcome === 'CONFLICT' && res.conflict) {
+        setSyncConflict(res.conflict);
+      } else if (res.error) {
+        setStorageWarning(res.error);
+      }
+
+      const pending = await getPendingCloudSyncCount(user.uid);
+      setPendingSyncCount(pending);
+      if (online) {
+        void refreshCloudBackupsList(user.uid);
+      }
+    },
+    [applyRestoredDataset, refreshCloudBackupsList]
+  );
+
+  useEffect(() => {
+    const unsub = subscribeToAuthState((user) => {
+      setCurrentUser(user);
+      setAuthReady(true);
+      if (!user) {
+        cloudHydratedForUidRef.current = null;
+        setSyncStatus('IDLE');
+        setSyncStatusMessage('Seus dados estão salvos neste dispositivo.');
+        setSyncConflict(null);
+        setCloudBackups([]);
+      }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    if (cloudHydratedForUidRef.current === currentUser.uid) return;
+    void runCloudReconciliation(currentUser);
+  }, [currentUser, runCloudReconciliation]);
+
+  // Listen to Firestore remote transaction updates for current authenticated user
+  useEffect(() => {
+    if (!currentUser || !currentUser.emailVerified) return;
+    let firstSnapshot = true;
+    const unsub = subscribeUserCloudTransactions(
+      currentUser.uid,
+      () => {
+        if (firstSnapshot) {
+          firstSnapshot = false;
+          return;
+        }
+        // Only pull if no unresolved conflict is active
+        if (!syncConflict && cloudHydratedForUidRef.current === currentUser.uid) {
+          void getLastSyncInfo(currentUser.uid).then((i) => {
+            if (i.lastSyncedAt) setLastSyncedAt(i.lastSyncedAt);
+          });
+        }
+      },
+      () => {
+        // non-fatal listener error while offline/unverified
+      }
+    );
+    return unsub;
+  }, [currentUser, syncConflict]);
+
+  // Auto-sync debounced on dataset changes after initial reconciliation
+  useEffect(() => {
+    if (!currentUser) return;
+    if (cloudHydratedForUidRef.current !== currentUser.uid) return;
+    if (syncConflict) return;
+    if (skipNextAutoSyncRef.current) {
+      skipNextAutoSyncRef.current = false;
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+      if (!online || !currentUser.emailVerified) {
+        const pending = await enqueueCloudDatasetSync(
+          currentUser.uid,
+          latestDatasetRef.current,
+          !online ? 'Offline' : 'E-mail pendente de verificação'
+        );
+        setPendingSyncCount(pending);
+        setSyncStatus(currentUser.emailVerified ? 'PENDING_OFFLINE' : 'UNVERIFIED_EMAIL');
+        setSyncStatusMessage(
+          currentUser.emailVerified
+            ? 'Existem alterações aguardando sincronização.'
+            : 'Seus dados estão salvos neste dispositivo. Confirme o e-mail para enviar à nuvem.'
+        );
+        return;
+      }
+
+      setSyncStatus('SYNCING');
+      const pushRes = await pushDatasetToFirestore({
+        user: currentUser,
+        dataset: latestDatasetRef.current,
+      });
+      if (pushRes.ok) {
+        setSyncStatus('SYNCED');
+        setSyncStatusMessage('Sincronização com a nuvem concluída.');
+        if (pushRes.syncedAt) setLastSyncedAt(pushRes.syncedAt);
+        setPendingSyncCount(0);
+      } else {
+        const pending = await enqueueCloudDatasetSync(
+          currentUser.uid,
+          latestDatasetRef.current,
+          pushRes.error
+        );
+        setPendingSyncCount(pending);
+        setSyncStatus('PENDING_OFFLINE');
+        setSyncStatusMessage('Existem alterações aguardando sincronização.');
+      }
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [currentUser, currentFullDataset, syncConflict]);
+
+  // Reconnect flush for queued offline changes
+  useEffect(() => {
+    if (!currentUser) return;
+    const handleOnline = () => {
+      void runCloudReconciliation(currentUser);
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [currentUser, runCloudReconciliation]);
 
   const handleSaveTransaction = (txData: Omit<Transaction, 'id'>, editId?: string) => {
     const amountCents = getTransactionAmountCents(txData);
@@ -1554,24 +1826,198 @@ export default function App() {
     setTimeout(() => setFeedbackBanner(null), 5000);
   };
 
-  const handleResetData = () => {
-    createSafetySnapshot('reset');
+  const handleResetData = (): { ok: boolean; error?: string } => {
+    const check = captureAndValidateExistingLocalBackup(
+      latestDatasetRef.current,
+      'reset',
+      currentUser?.uid
+    );
+    if (!check.ok || !check.snapshot) {
+      const msg =
+        check.error || 'Não foi possível validar o backup. Seus dados originais foram preservados.';
+      setStorageWarning(msg);
+      return { ok: false, error: msg };
+    }
+
+    setPreResetSnapshot(check.snapshot);
     clearEntityStoragePreservingBackups();
     void fileStorageService.clearAllFiles();
-    setTransactions(initialTransactions);
-    setAccounts(initialAccounts);
-    setCreditCards(initialCreditCards);
-    setBoletos(initialBoletos);
-    setDebts(initialDebts);
-    setAssets(initialAssets);
-    setDocuments(initialDocuments);
+    setTransactions([]);
+    setAccounts([]);
+    setCreditCards([]);
+    setBoletos([]);
+    setDebts([]);
+    setAssets([]);
+    setDocuments([]);
     setSalaryData(EMPTY_SALARY_DATASET);
     setBudgets([]);
     setCategoryRules([]);
     setFeedbackBanner(
-      'Dados restaurados para o padrão inicial. Um snapshot automático dos seus dados anteriores foi preservado em Configurações.'
+      'Dados financeiros zerados com segurança (estado vazio). Um backup validado foi preservado em Configurações.'
     );
     setTimeout(() => setFeedbackBanner(null), 6000);
+    return { ok: true };
+  };
+
+  const handleResolveSyncConflict = async (strategy: ConflictResolutionStrategy) => {
+    if (!currentUser || !syncConflict) return;
+    setConflictBusy(true);
+    try {
+      const res = await resolveSyncConflict({
+        user: currentUser,
+        conflict: syncConflict,
+        strategy,
+      });
+      if (!res.ok) {
+        setStorageWarning(res.error || 'Falha ao resolver divergência.');
+        return;
+      }
+      if (res.dataset) {
+        applyRestoredDataset(res.dataset);
+      }
+      cloudHydratedForUidRef.current = currentUser.uid;
+      setSyncConflict(null);
+      if (res.syncedAt) setLastSyncedAt(res.syncedAt);
+      const pending = await getPendingCloudSyncCount(currentUser.uid);
+      setPendingSyncCount(pending);
+      setSyncStatus(currentUser.emailVerified ? 'SYNCED' : 'UNVERIFIED_EMAIL');
+      setSyncStatusMessage(
+        currentUser.emailVerified
+          ? 'Sincronização com a nuvem concluída.'
+          : 'Seus dados estão salvos neste dispositivo.'
+      );
+      setFeedbackBanner('Divergência resolvida com backup automático salvo antes da atualização.');
+      setTimeout(() => setFeedbackBanner(null), 5000);
+    } finally {
+      setConflictBusy(false);
+    }
+  };
+
+  const handleSyncNow = async () => {
+    if (!currentUser) return;
+    await runCloudReconciliation(currentUser);
+  };
+
+  const handleCreateCloudBackup = async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!currentUser) {
+      return { ok: false, error: 'Faça login para criar snapshots na nuvem.' };
+    }
+    setCloudBackupBusy(true);
+    try {
+      const res = await createCloudBackupSnapshot({
+        user: currentUser,
+        dataset: latestDatasetRef.current,
+        reason: 'manual',
+      });
+      if (res.ok) {
+        await refreshCloudBackupsList(currentUser.uid);
+      }
+      return { ok: res.ok, error: res.error };
+    } finally {
+      setCloudBackupBusy(false);
+    }
+  };
+
+  const handleRestoreCloudBackup = async (
+    backup: CloudBackupSnapshotMeta
+  ): Promise<{ ok: boolean; error?: string }> => {
+    setCloudBackupBusy(true);
+    try {
+      const res = validateAndPrepareCloudRestore({
+        backup,
+        currentDataset: latestDatasetRef.current,
+        mode: 'replace',
+      });
+      if (!res.ok || !res.restoredDataset) {
+        return { ok: false, error: res.error };
+      }
+      applyRestoredDataset(res.restoredDataset);
+      setFeedbackBanner('Backup da nuvem restaurado após verificação de integridade.');
+      setTimeout(() => setFeedbackBanner(null), 5000);
+      return { ok: true };
+    } finally {
+      setCloudBackupBusy(false);
+    }
+  };
+
+  const handleRefreshEmailVerification = async () => {
+    const refreshed = await reloadCurrentAuthUser();
+    if (refreshed) {
+      setCurrentUser(refreshed);
+      if (refreshed.emailVerified) {
+        cloudHydratedForUidRef.current = null;
+        await runCloudReconciliation(refreshed);
+      }
+    }
+  };
+
+  const handleClearLocalWorkspace = () => {
+    const check = captureAndValidateExistingLocalBackup(
+      latestDatasetRef.current,
+      'manual',
+      currentUser?.uid
+    );
+    if (!check.ok) {
+      setStorageWarning(
+        check.error || 'Não foi possível validar o backup. Seus dados originais foram preservados.'
+      );
+      return;
+    }
+    if (check.snapshot) setPreResetSnapshot(check.snapshot);
+    clearEntityStoragePreservingBackups();
+    skipNextAutoSyncRef.current = true;
+    setTransactions([]);
+    setAccounts([]);
+    setCreditCards([]);
+    setBoletos([]);
+    setDebts([]);
+    setAssets([]);
+    setDocuments([]);
+    setSalaryData(EMPTY_SALARY_DATASET);
+    setBudgets([]);
+    setCategoryRules([]);
+    setFeedbackBanner('Cache local limpo após backup. Seus dados na nuvem permanecem intactos.');
+    setTimeout(() => setFeedbackBanner(null), 5000);
+  };
+
+  const handleSignOut = async () => {
+    await signOutAuthUser();
+    cloudHydratedForUidRef.current = null;
+    setCurrentUser(null);
+    setSyncConflict(null);
+    setCloudBackups([]);
+  };
+
+  const handleDeleteUserAccount = async (): Promise<{ ok: boolean; error?: string }> => {
+    if (!currentUser) return { ok: false, error: 'Nenhum usuário autenticado.' };
+    try {
+      await purgeUserCloudData(currentUser.uid);
+      const authRes = await deleteCurrentFirebaseUser();
+      if (!authRes.ok) {
+        return { ok: false, error: authRes.error };
+      }
+      clearEntityStoragePreservingBackups();
+      void fileStorageService.clearAllFiles();
+      skipNextAutoSyncRef.current = true;
+      setTransactions([]);
+      setAccounts([]);
+      setCreditCards([]);
+      setBoletos([]);
+      setDebts([]);
+      setAssets([]);
+      setDocuments([]);
+      setSalaryData(EMPTY_SALARY_DATASET);
+      setBudgets([]);
+      setCategoryRules([]);
+      cloudHydratedForUidRef.current = null;
+      setCurrentUser(null);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : 'Falha ao excluir conta.',
+      };
+    }
   };
 
   const openNewModalForEntity = (entity: 'CPF' | 'CNPJ') => {
@@ -1586,6 +2032,40 @@ export default function App() {
     setIsModalOpen(true);
   };
 
+  // All React hooks are declared ABOVE this point (strict Rules of Hooks compliance)
+  const pendingBankNotificationsCount = useMemo(
+    () => notificationItems.filter((n) => n.status === 'PENDING').length,
+    [notificationItems]
+  );
+
+  const existingLocalRecordsCount = useMemo(
+    () => countDatasetRecords(currentFullDataset),
+    [currentFullDataset]
+  );
+
+  if (!authReady) {
+    return (
+      <div className="min-h-dvh bg-[#f3f5f8] dark:bg-[#0b1120] grid place-items-center p-6 text-center">
+        <div className="space-y-2">
+          <div className="text-xl font-extrabold text-[#14263d] dark:text-white">
+            FINANCE <span className="text-emerald-600 dark:text-emerald-400">IA</span>
+          </div>
+          <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+            Verificando sessão segura e integridade local...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <AuthScreen
+        existingLocalRecordsCount={existingLocalRecordsCount}
+      />
+    );
+  }
+
   if (vaultEnabled && !vaultKey) {
     return (
       <VaultLockScreen
@@ -1595,11 +2075,6 @@ export default function App() {
       />
     );
   }
-
-  const pendingBankNotificationsCount = useMemo(
-    () => notificationItems.filter((n) => n.status === 'PENDING').length,
-    [notificationItems]
-  );
 
   const handleConfirmNotification = async (resolution: NotificationReviewResolution) => {
     const targetItem = notificationItems.find((n) => n.id === resolution.notificationId);
@@ -1710,6 +2185,8 @@ export default function App() {
           currentTab={currentTab}
           setCurrentTab={(tab) => handleNavigate(tab)}
           pendingBankNotificationsCount={pendingBankNotificationsCount}
+          currentUser={currentUser}
+          onSignOut={handleSignOut}
         />
       </div>
 
@@ -1726,6 +2203,8 @@ export default function App() {
           onToggleTheme={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
           boletos={boletos}
           onNavigate={handleNavigate}
+          syncStatus={syncStatus}
+          pendingSyncCount={pendingSyncCount}
         />
 
         <main className="p-4 sm:p-8 max-w-[1600px] w-full mx-auto flex-1">
@@ -1757,6 +2236,7 @@ export default function App() {
               budgets={budgets}
               scope={scope}
               period={period}
+              syncStatus={syncStatus}
               onNavigate={handleNavigate}
               onOpenNew={() => openNewModalForEntity(scope === 'CNPJ' ? 'CNPJ' : 'CPF')}
               onEditTransaction={openEditModal}
@@ -1976,6 +2456,26 @@ export default function App() {
               onEnableVaultPin={handleEnableVaultPin}
               onDisableVaultPin={handleDisableVaultPin}
               onLockVault={handleLockVault}
+              currentUser={currentUser}
+              syncStatus={syncStatus}
+              syncStatusMessage={syncStatusMessage}
+              lastSyncedAt={lastSyncedAt}
+              pendingSyncCount={pendingSyncCount}
+              hasSyncConflict={Boolean(syncConflict)}
+              cloudBackups={cloudBackups}
+              cloudBackupBusy={cloudBackupBusy}
+              onSyncNow={handleSyncNow}
+              onOpenSyncConflict={() => {
+                if (syncConflict) setSyncConflict({ ...syncConflict });
+              }}
+              onCreateCloudBackup={handleCreateCloudBackup}
+              onRestoreCloudBackup={handleRestoreCloudBackup}
+              onRefreshCloudBackups={() => refreshCloudBackupsList(currentUser.uid)}
+              onResendVerificationEmail={resendVerificationEmail}
+              onRefreshEmailVerification={handleRefreshEmailVerification}
+              onSignOut={handleSignOut}
+              onClearLocalWorkspace={handleClearLocalWorkspace}
+              onDeleteAccount={handleDeleteUserAccount}
             />
           )}
         </main>
@@ -1988,7 +2488,17 @@ export default function App() {
         onOpenNew={() => openNewModalForEntity(scope === 'CNPJ' ? 'CNPJ' : 'CPF')}
       />
 
-      <OfflineIndicator />
+      <OfflineIndicator
+        cloudPendingCount={pendingSyncCount}
+        cloudSyncStatusMsg={syncStatus === 'SYNCING' ? 'Sincronizando com a nuvem...' : null}
+      />
+
+      <SyncConflictSheet
+        conflict={syncConflict}
+        busy={conflictBusy}
+        onResolve={handleResolveSyncConflict}
+        onDismissLater={() => setSyncConflict(null)}
+      />
 
       {pendingUndo && (
         <div

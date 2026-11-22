@@ -17,18 +17,24 @@ import {
   LineChart,
   Banknote,
   BellRing,
+  LogOut,
 } from 'lucide-react';
+import type { AuthUserSummary } from '../services/authService';
 
 interface SidebarProps {
   currentTab: string;
   setCurrentTab: (tab: string) => void;
   pendingBankNotificationsCount?: number;
+  currentUser?: AuthUserSummary | null;
+  onSignOut?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   setCurrentTab,
   pendingBankNotificationsCount = 0,
+  currentUser,
+  onSignOut,
 }) => {
   const menuItems = [
     { id: 'dashboard', label: 'Visão executiva', icon: LayoutDashboard, section: 'GESTÃO' },
@@ -64,13 +70,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       <div className="my-3 px-3 py-3 bg-[#203a59] dark:bg-slate-900 rounded-xl flex items-center gap-3 border border-[#2a4d75] dark:border-slate-800">
-        <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-300 grid place-items-center font-bold text-sm">
-          FA
+        <div className="w-9 h-9 rounded-full bg-emerald-500/20 text-emerald-300 grid place-items-center font-bold text-sm shrink-0">
+          {(currentUser?.displayName || 'FI').slice(0, 2).toUpperCase()}
         </div>
-        <div className="overflow-hidden">
-          <p className="text-xs font-bold text-white truncate">Titular CPF & CNPJ</p>
-          <small className="block text-[11px] text-[#afbdcc] truncate">Gestão consolidada</small>
+        <div className="overflow-hidden flex-1 min-w-0">
+          <p className="text-xs font-bold text-white truncate">
+            {currentUser?.displayName || 'Titular CPF & CNPJ'}
+          </p>
+          <small className="block text-[11px] text-[#afbdcc] truncate">
+            {currentUser?.email || 'Gestão consolidada'}
+          </small>
         </div>
+        {onSignOut && (
+          <button
+            type="button"
+            onClick={onSignOut}
+            title="Sair da conta"
+            aria-label="Sair da conta"
+            className="p-1.5 rounded-lg text-[#afbdcc] hover:text-white hover:bg-[#2a4d75] cursor-pointer shrink-0"
+          >
+            <LogOut size={14} />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto pr-1">

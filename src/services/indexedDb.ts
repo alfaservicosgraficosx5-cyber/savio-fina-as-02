@@ -51,6 +51,36 @@ export interface StoredCryptoKeyRecord {
   createdAt: string;
 }
 
+export interface CloudSyncQueueRecord {
+  id: string;
+  uid: string;
+  collectionName: string;
+  entityId: string;
+  operation: 'UPSERT' | 'DELETE' | 'FULL_DATASET_SYNC';
+  payloadJson: string;
+  status: 'PENDING' | 'FAILED';
+  attempts: number;
+  lastError?: string;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface SyncMetadataRecord {
+  key: string;
+  value: string;
+  updatedAt: string;
+}
+
+export interface CloudBackupCacheRecord {
+  id: string;
+  uid: string;
+  createdAt: string;
+  reason: string;
+  integrityHash: string;
+  countsJson: string;
+  byteSize: number;
+}
+
 export class SavioFinanaDatabase extends Dexie {
   transactions!: Table<Transaction, string>;
   accounts!: Table<Account, string>;
@@ -67,6 +97,9 @@ export class SavioFinanaDatabase extends Dexie {
   reversals!: Table<TransactionReversalRecord, string>;
   bankNotificationEvents!: Table<StoredBankNotificationRecord, string>;
   cryptoKeys!: Table<StoredCryptoKeyRecord, string>;
+  syncQueue!: Table<CloudSyncQueueRecord, string>;
+  syncMetadata!: Table<SyncMetadataRecord, string>;
+  cloudBackups!: Table<CloudBackupCacheRecord, string>;
 
   constructor() {
     super('SavioFinanaDB');
@@ -117,6 +150,28 @@ export class SavioFinanaDatabase extends Dexie {
       bankNotificationEvents:
         'id, status, sourceEventKey, fingerprintHash, packageName, receivedAt, retentionExpiresAt',
       cryptoKeys: 'id',
+    });
+
+    this.version(4).stores({
+      transactions: 'id, entityId, accountId, date, category, status, externalId, transferId',
+      accounts: 'id, entityId, archived',
+      creditCards: 'id, entityId, status',
+      boletos: 'id, entityId, status, vencimento',
+      debts: 'id, entityId, status',
+      assets: 'id, entityId, assetType',
+      documents: 'id, type, status, fileId',
+      files: 'id, documentId, mimeType, createdAt',
+      settings: 'key',
+      backups: 'id, reason, createdAt',
+      recovery: 'id, key, createdAt',
+      auditLogs: 'id, action, entityType, entityId, timestamp',
+      reversals: 'id, originalTransactionId, reversalTransactionId, timestamp',
+      bankNotificationEvents:
+        'id, status, sourceEventKey, fingerprintHash, packageName, receivedAt, retentionExpiresAt',
+      cryptoKeys: 'id',
+      syncQueue: 'id, uid, collectionName, entityId, status, updatedAt',
+      syncMetadata: 'key',
+      cloudBackups: 'id, uid, createdAt',
     });
   }
 }

@@ -1,11 +1,9 @@
-import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User } from 'firebase/auth';
+import { firebaseAuth } from './firebaseClient';
 import { sanitizeCellForSheet } from '../utils/sheetGuard';
 import { todayLocal, todayDisplayPtBr, addDaysLocal } from '../utils/dateLocal';
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const auth = getAuth(app);
+const auth = firebaseAuth;
 
 const provider = new GoogleAuthProvider();
 // Minimum required scopes as requested in Phase 0

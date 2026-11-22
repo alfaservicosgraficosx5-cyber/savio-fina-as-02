@@ -175,13 +175,26 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 sm:p-6 rounded-2xl shadow-xs flex items-center justify-between">
         <div>
           <span className="text-xs font-semibold text-slate-400">Saldo Realizado em Contas</span>
-          <div className="text-2xl sm:text-3xl font-extrabold text-[#14263d] dark:text-white mt-1">
-            R$ {formatCurrencyBRL(totalBalance)}
-          </div>
-          {Math.abs(totalProjectedBalance - totalBalance) >= 0.01 && (
-            <p className="text-xs text-amber-700 dark:text-amber-300 font-semibold mt-1">
-              Saldo projetado (com pendentes/planejados): R$ {formatCurrencyBRL(totalProjectedBalance)}
-            </p>
+          {accounts.length === 0 ? (
+            <>
+              <div className="text-xl sm:text-2xl font-extrabold text-[#14263d] dark:text-white mt-1">
+                Nenhuma conta cadastrada
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                Toque em <strong>Nova conta</strong> para registrar seu banco ou carteira.
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="text-2xl sm:text-3xl font-extrabold text-[#14263d] dark:text-white mt-1">
+                R$ {formatCurrencyBRL(totalBalance)}
+              </div>
+              {Math.abs(totalProjectedBalance - totalBalance) >= 0.01 && (
+                <p className="text-xs text-amber-700 dark:text-amber-300 font-semibold mt-1">
+                  Saldo projetado (com pendentes/planejados): R$ {formatCurrencyBRL(totalProjectedBalance)}
+                </p>
+              )}
+            </>
           )}
         </div>
         <div className="p-3 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 rounded-2xl">
@@ -206,7 +219,26 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           </span>
         </div>
 
-        {!isDesktop ? (
+        {accounts.length === 0 ? (
+          <div className="p-8 text-center space-y-3">
+            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+              Você ainda não possui contas bancárias cadastradas.
+            </p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Novas instalações iniciam zeradas. Adicione sua primeira conta ou restaure um backup em Configurações.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setErrorMsg('');
+                setModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-4 min-h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
+            >
+              <Plus size={15} /> Cadastrar primeira conta
+            </button>
+          </div>
+        ) : !isDesktop ? (
           <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {accounts.map((acc) => {
               const check = deletionChecks.get(acc.id);
