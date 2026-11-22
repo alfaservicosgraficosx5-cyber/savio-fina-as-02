@@ -14,6 +14,7 @@ import {
 } from '../../core/sync/offlineQueue';
 import { computeWindowedRange } from '../../components/VirtualList';
 import { sanitizeMoneyKeystrokes } from '../../components/MoneyInputField';
+import { buildComparativeChartSeries } from '../../components/investments/GraficoComparativo';
 import { getAnnualTotal, getMonthlyTotal } from '../salaryCalculations';
 import type { SalaryRecord, SalarySource } from '../../types/salary';
 
@@ -221,5 +222,23 @@ describe('Auditoria de Arquitetura e Segurança Financeira', () => {
 
     expect(getMonthlyTotal(records, 2026, 1, sources)).toBe(0.3);
     expect(getAnnualTotal(records, 2026, sources)).toBe(0.3);
+  });
+
+  it('buildComparativeChartSeries converte série CDI x CDB para rentabilidade acumulada percentual (%)', () => {
+    const sample = [
+      { date: '01/10', cdi: 1000, cdb: 1000, invested: 1000 },
+      { date: '15/10', cdi: 1005.5, cdb: 1006.33, invested: 1000 },
+      { date: '30/10', cdi: 1011.2, cdb: 1012.88, invested: 1000 },
+    ];
+
+    const currency = buildComparativeChartSeries(sample, 'currency');
+    expect(currency[2].cdi).toBe(1011.2);
+    expect(currency[2].cdb).toBe(1012.88);
+
+    const pct = buildComparativeChartSeries(sample, 'percent');
+    expect(pct[0].cdi).toBe(0);
+    expect(pct[0].cdb).toBe(0);
+    expect(pct[2].cdi).toBe(1.12);
+    expect(pct[2].cdb).toBe(1.29);
   });
 });
