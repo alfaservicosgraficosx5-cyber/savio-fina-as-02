@@ -3,7 +3,7 @@ import { EntityScope, Boleto } from '../types';
 import { calculateCountdown } from '../utils/countdown';
 import { PeriodOption } from '../utils/dateUtils';
 import { PWAInstallButton } from './PWAInstallButton';
-import { Bell, ShieldCheck, UserCheck, Building, Sun, Moon, Plus, X, Cloud, CloudOff, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Bell, ShieldCheck, UserCheck, Building, Sun, Moon, Plus, X, Cloud, CloudOff, RefreshCw, AlertTriangle, Share2 } from 'lucide-react';
 import type { SyncStatus } from '../services/cloudSyncService';
 
 interface HeaderProps {
@@ -20,6 +20,7 @@ interface HeaderProps {
   onNavigate: (tab: string) => void;
   syncStatus?: SyncStatus;
   pendingSyncCount?: number;
+  onOpenShare?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -36,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   syncStatus = 'IDLE',
   pendingSyncCount = 0,
+  onOpenShare,
 }) => {
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
@@ -151,6 +153,19 @@ export const Header: React.FC<HeaderProps> = ({
             <Plus size={18} />
             Novo lançamento
           </button>
+
+          {/* Share / Open on Mobile */}
+          {onOpenShare && (
+            <button
+              type="button"
+              onClick={onOpenShare}
+              aria-label="Compartilhar ou abrir no celular"
+              title="Compartilhar link e QR Code para celular"
+              className="min-w-10 min-h-10 grid place-items-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+            >
+              <Share2 size={18} />
+            </button>
+          )}
 
           {/* Theme Toggle */}
           <button

@@ -3,9 +3,9 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  orderBy,
   query,
   setDoc,
+  where,
 } from 'firebase/firestore';
 import {
   AppDataset,
@@ -61,10 +61,12 @@ export async function listCloudBackups(uid: string): Promise<CloudBackupSnapshot
   try {
     const q = query(
       collection(firestoreDb, 'users', uid, 'backups'),
-      orderBy('createdAt', 'desc')
+      where('ownerUid', '==', uid)
     );
     const snap = await getDocs(q);
-    const items = snap.docs.map((d) => d.data() as CloudBackupSnapshotMeta);
+    const items = snap.docs
+      .map((d) => d.data() as CloudBackupSnapshotMeta)
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
 
     if (db) {
       try {

@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { buildWhatsAppShareUrl, resolveMobileShareInfo } from '../../utils/mobileShare';
+import { isOriginAllowedForAi } from '../../server/aiGuard';
 import {
   EMPTY_APP_DATASET,
   LEGACY_DEMO_FINGERPRINT_IDS,
@@ -271,5 +275,57 @@ describe('Inicialização Vazia, Proteção de Dados, Auth, Sync & Backup Duplo'
     });
     expect(rejectedRestore.ok).toBe(false);
     expect(rejectedRestore.error).toContain('Hash de integridade divergente');
+  });
+
+  it('gera link compatível com celular convertendo ais-dev para ais-pre e monta link do WhatsApp', () => {
+    const devResolved = resolveMobileShareInfo(
+      'https://ais-dev-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app'
+    );
+    expect(devResolved.isPreviewDevUrl).toBe(true);
+    expect(devResolved.isShareReadyUrl).toBe(true);
+    expect(devResolved.shareUrl).toBe(
+      'https://ais-pre-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app'
+    );
+
+    const preResolved = resolveMobileShareInfo(
+      'https://ais-pre-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app'
+    );
+    expect(preResolved.isPreviewDevUrl).toBe(false);
+    expect(preResolved.shareUrl).toBe(
+      'https://ais-pre-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app'
+    );
+
+    const waUrl = buildWhatsAppShareUrl(preResolved.shareUrl);
+    expect(waUrl.startsWith('https://wa.me/?text=')).toBe(true);
+    expect(waUrl).toContain(encodeURIComponent(preResolved.shareUrl));
+  });
+
+  it('valida origem por Referer em navegadores móveis e garante where(ownerUid) nas queries do Firestore', () => {
+    expect(
+      isOriginAllowedForAi({
+        referer: 'https://ais-pre-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app/dashboard',
+        host: 'ais-pre-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app',
+        nodeEnv: 'production',
+      })
+    ).toBe(true);
+
+    expect(
+      isOriginAllowedForAi({
+        origin: 'https://evil-site.example.com',
+        host: 'ais-pre-25msohbcck4gcpe4p24iba-538369928080.us-west2.run.app',
+        nodeEnv: 'production',
+      })
+    ).toBe(false);
+
+    const syncSrc = fs.readFileSync(
+      path.resolve(__dirname, '../../services/cloudSyncService.ts'),
+      'utf-8'
+    );
+    const backupSrc = fs.readFileSync(
+      path.resolve(__dirname, '../../services/cloudBackupService.ts'),
+      'utf-8'
+    );
+    expect(syncSrc).toContain("where('ownerUid', '==', uid)");
+    expect(backupSrc).toContain("where('ownerUid', '==', uid)");
   });
 });

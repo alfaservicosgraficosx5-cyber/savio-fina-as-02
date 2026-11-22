@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { Sheet } from './Sheet';
 import { PWAInstallButton } from './PWAInstallButton';
+import { MobileShareCard } from './MobileSharePanel';
 import type { AuthUserSummary } from '../services/authService';
 import type { CloudBackupSnapshotMeta } from '../services/cloudBackupService';
 import type { SyncStatus } from '../services/cloudSyncService';
@@ -299,6 +300,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         </div>
         <PWAInstallButton />
       </div>
+
+      {/* Mobile Access & Shareable Link Card */}
+      <MobileShareCard />
 
       {/* Cloud Account, Sync Status & Cloud Backups (Dual Backup) */}
       {currentUser && (

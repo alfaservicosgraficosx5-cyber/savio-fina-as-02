@@ -136,6 +136,7 @@ import {
 import { RotateCcw, X } from 'lucide-react';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { SyncConflictSheet } from './components/SyncConflictSheet';
+import { MobileShareSheet } from './components/MobileSharePanel';
 import {
   deleteCurrentFirebaseUser,
   reloadCurrentAuthUser,
@@ -436,6 +437,7 @@ export default function App() {
     if (res.error) setStorageWarning((prev) => prev || res.error || null);
     return res.data;
   });
+  const [shareSheetOpen, setShareSheetOpen] = useState(false);
 
   // Safe migration on startup: moves legacy base64 docs to SavioFinanaDB and mirrors entities without localStorage.clear()
   useEffect(() => {
@@ -2205,6 +2207,7 @@ export default function App() {
           onNavigate={handleNavigate}
           syncStatus={syncStatus}
           pendingSyncCount={pendingSyncCount}
+          onOpenShare={() => setShareSheetOpen(true)}
         />
 
         <main className="p-4 sm:p-8 max-w-[1600px] w-full mx-auto flex-1">
@@ -2498,6 +2501,11 @@ export default function App() {
         busy={conflictBusy}
         onResolve={handleResolveSyncConflict}
         onDismissLater={() => setSyncConflict(null)}
+      />
+
+      <MobileShareSheet
+        open={shareSheetOpen}
+        onClose={() => setShareSheetOpen(false)}
       />
 
       {pendingUndo && (

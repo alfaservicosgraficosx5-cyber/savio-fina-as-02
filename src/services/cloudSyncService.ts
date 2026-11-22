@@ -5,7 +5,9 @@ import {
   getDoc,
   getDocs,
   onSnapshot,
+  query,
   setDoc,
+  where,
   writeBatch,
   type Unsubscribe,
 } from 'firebase/firestore';
@@ -453,6 +455,10 @@ function stripCloudMeta<T extends Record<string, unknown>>(docData: T): T {
   return rest as T;
 }
 
+function userOwnedSubcollectionQuery(uid: string, colName: string) {
+  return query(collection(firestoreDb, 'users', uid, colName), where('ownerUid', '==', uid));
+}
+
 export async function fetchUserCloudDataset(uid: string): Promise<{
   dataset: AppDataset;
   hasAnyCloudData: boolean;
@@ -470,34 +476,34 @@ export async function fetchUserCloudDataset(uid: string): Promise<{
     ruleSnap,
     settingsSnap,
   ] = await Promise.all([
-    getDocs(collection(firestoreDb, 'users', uid, 'accounts')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'accounts')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/accounts`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'transactions')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'transactions')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/transactions`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'creditCards')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'creditCards')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/creditCards`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'boletos')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'boletos')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/boletos`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'debts')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'debts')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/debts`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'assets')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'assets')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/assets`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'documents')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'documents')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/documents`)
     ),
     getDoc(doc(firestoreDb, 'users', uid, 'salaries', 'main')).catch((e) =>
       handleFirestoreError(e, OperationType.GET, `users/${uid}/salaries/main`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'budgets')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'budgets')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/budgets`)
     ),
-    getDocs(collection(firestoreDb, 'users', uid, 'categoryRules')).catch((e) =>
+    getDocs(userOwnedSubcollectionQuery(uid, 'categoryRules')).catch((e) =>
       handleFirestoreError(e, OperationType.LIST, `users/${uid}/categoryRules`)
     ),
     getDoc(doc(firestoreDb, 'users', uid, 'settings', 'preferences')).catch((e) =>
@@ -591,7 +597,7 @@ async function collectExistingCreatedAtMap(
   colName: string
 ): Promise<Map<string, string>> {
   try {
-    const snap = await getDocs(collection(firestoreDb, 'users', uid, colName));
+    const snap = await getDocs(userOwnedSubcollectionQuery(uid, colName));
     const map = new Map<string, string>();
     snap.docs.forEach((d) => {
       const createdAt = d.data()?.createdAt;
@@ -1041,9 +1047,9 @@ export function subscribeUserCloudTransactions(
   onRemoteUpdate: () => void,
   onError?: (err: unknown) => void
 ): Unsubscribe {
-  const colRef = collection(firestoreDb, 'users', uid, 'transactions');
+  const txQuery = userOwnedSubcollectionQuery(uid, 'transactions');
   return onSnapshot(
-    colRef,
+    txQuery,
     () => {
       onRemoteUpdate();
     },
@@ -1075,7 +1081,7 @@ export async function purgeUserCloudData(uid: string): Promise<void> {
 
   const ops: BatchWriteOp[] = [];
   for (const colName of subcollections) {
-    const snap = await getDocs(collection(firestoreDb, 'users', uid, colName));
+    const snap = await getDocs(userOwnedSubcollectionQuery(uid, colName));
     snap.docs.forEach((d) => {
       ops.push({ type: 'delete', path: ['users', uid, colName, d.id] });
     });

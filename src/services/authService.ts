@@ -26,6 +26,7 @@ export interface AuthUserSummary {
 export interface AuthActionResult {
   ok: boolean;
   user?: AuthUserSummary;
+  redirecting?: boolean;
   verificationSent?: boolean;
   requiresRecentLogin?: boolean;
   providerNotEnabled?: boolean;
@@ -71,9 +72,20 @@ export function translateFirebaseAuthError(err: unknown): {
     case 'auth/network-request-failed':
       return { message: 'Sem conexão com a internet para autenticar no momento.' };
     case 'auth/popup-closed-by-user':
+    case 'auth/cancelled-popup-request':
       return { message: 'Login com Google cancelado antes da conclusão.' };
     case 'auth/popup-blocked':
       return { message: 'O navegador bloqueou a janela do Google. Permita pop-ups para continuar.' };
+    case 'auth/unauthorized-domain':
+      return {
+        message:
+          'Este domínio ainda não está autorizado no Firebase Auth. Adicione o endereço em Authentication -> Settings -> Authorized domains no Firebase Console.',
+      };
+    case 'auth/operation-not-supported-in-this-environment':
+      return {
+        message:
+          'Este navegador móvel não permite pop-up de login. Abra o link diretamente no Chrome ou Safari.',
+      };
     case 'auth/operation-not-allowed':
       return {
         providerNotEnabled: true,
@@ -152,9 +164,9 @@ export async function signUpWithEmail(params: {
 }
 
 export async function signInWithGoogleAuth(): Promise<AuthActionResult> {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
   try {
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: 'select_account' });
     const cred = await signInWithPopup(firebaseAuth, provider);
     return { ok: true, user: mapFirebaseUser(cred.user) };
   } catch (err) {

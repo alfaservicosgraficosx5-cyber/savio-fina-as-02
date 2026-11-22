@@ -125,18 +125,20 @@ export const ExtractedBoletoSchema = z.object({
 
 export function isOriginAllowedForAi(params: {
   origin?: string;
+  referer?: string;
   host?: string;
   forwardedHost?: string;
   nodeEnv?: string;
 }): boolean {
-  const { origin, host, forwardedHost, nodeEnv = process.env.NODE_ENV } = params;
+  const { origin, referer, host, forwardedHost, nodeEnv = process.env.NODE_ENV } = params;
   const isProd = nodeEnv === 'production';
-  if (!origin) {
-    // Reject anonymous script requests without Origin in production
+  const candidate = origin || referer;
+  if (!candidate) {
+    // Reject anonymous script requests without Origin/Referer in production
     return !isProd;
   }
   try {
-    const parsedOrigin = new URL(origin);
+    const parsedOrigin = new URL(candidate);
     const originHost = parsedOrigin.host.toLowerCase();
     const expectedHosts = [host, forwardedHost]
       .filter(Boolean)

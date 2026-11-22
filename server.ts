@@ -122,6 +122,7 @@ async function startServer() {
   app.use('/api/ai', (req, res, next) => {
     const allowedOrigin = isOriginAllowedForAi({
       origin: typeof req.headers.origin === 'string' ? req.headers.origin : undefined,
+      referer: typeof req.headers.referer === 'string' ? req.headers.referer : undefined,
       host: typeof req.headers.host === 'string' ? req.headers.host : undefined,
       forwardedHost:
         typeof req.headers['x-forwarded-host'] === 'string'

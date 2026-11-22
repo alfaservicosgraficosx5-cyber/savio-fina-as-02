@@ -87,7 +87,7 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "revision": "3f226624e875d53d60f3b0a4f2464b5b"
   }, {
     "url": "index.html",
-    "revision": "9791e96fab8681dbe8a505817c6d951e"
+    "revision": "543bdb5e1bf940f44e247746d0e15a5f"
   }, {
     "url": "icon.svg",
     "revision": "eca6ba2a95c716dac62c23f7f74f66a1"
@@ -98,10 +98,10 @@ define(['./workbox-afac4cd2'], (function (workbox) { 'use strict';
     "url": "assets/workbox-window.prod.es5-Bd17z0YL.js",
     "revision": null
   }, {
-    "url": "assets/index-DxWExcXB.js",
+    "url": "assets/index-CSOo5Hbk.js",
     "revision": null
   }, {
-    "url": "assets/index-BHhxUV3g.css",
+    "url": "assets/index-Bx8LyCdc.css",
     "revision": null
   }, {
     "url": "assets/aistudio/finance_ia_prototipo_b34d3cd6.html",
