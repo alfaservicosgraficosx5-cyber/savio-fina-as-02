@@ -317,6 +317,65 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </section>
 
+      {/* 1.5 Gavetas Recolhíveis (Accordions) inspiradas no padrão mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <details className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <summary className="p-4 text-xs font-bold text-[#14263d] dark:text-white flex items-center justify-between cursor-pointer select-none">
+            <span className="flex items-center gap-2">
+              ⚙️ Filtros rápidos & Ações de Dados
+            </span>
+            <span className="text-[11px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-3 text-xs">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate('documents')}
+                className="w-full min-h-10 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Camera size={14} /> Scanner & Docs
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate('imports')}
+                className="w-full min-h-10 px-3 py-2 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                Importar Extrato
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Período ativo: <strong>{period === 'ALL' ? 'Todo o histórico' : period}</strong> (Escopo: {scope})
+            </p>
+          </div>
+        </details>
+
+        <details className="group bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+          <summary className="p-4 text-xs font-bold text-[#14263d] dark:text-white flex items-center justify-between cursor-pointer select-none">
+            <span className="flex items-center gap-2">
+              🏢 Detalhes por Instituição ({scopedAccounts.length} contas)
+            </span>
+            <span className="text-[11px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+          </summary>
+          <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-2 text-xs">
+            {scopedAccounts.length === 0 ? (
+              <p className="text-slate-400">Nenhuma conta cadastrada neste escopo.</p>
+            ) : (
+              scopedAccounts.map((acc) => (
+                <div key={acc.id} className="flex justify-between items-center p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700">
+                  <div>
+                    <div className="font-bold text-[#14263d] dark:text-white">{acc.institutionName}</div>
+                    <div className="text-[11px] text-slate-400">{acc.accountName}</div>
+                  </div>
+                  <div className="font-extrabold text-emerald-700 dark:text-emerald-400">
+                    R$ {formatCurrencyBRL(acc.balance)}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </details>
+      </div>
+
       {/* 2. RECEITAS & DESPESAS SIDE BY SIDE + RESULTADO + A VENCER */}
       <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <button

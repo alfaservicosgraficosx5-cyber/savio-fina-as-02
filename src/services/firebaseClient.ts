@@ -11,6 +11,7 @@ import {
   getDocFromServer,
   type Firestore,
 } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 import firebaseAppletConfig from '../../firebase-applet-config.json';
 
 export enum OperationType {
@@ -55,28 +56,35 @@ export const resolvedFirebaseConfig: ResolvedFirebaseConfig = {
   firestoreDatabaseId: firebaseAppletConfig.firestoreDatabaseId,
 };
 
-export const firebaseApp: FirebaseApp =
+export const app: FirebaseApp =
   getApps().length === 0 ? initializeApp(resolvedFirebaseConfig) : getApps()[0];
 
-export const firebaseAuth: Auth = getAuth(firebaseApp);
+export const firebaseApp: FirebaseApp = app;
+
+export const auth: Auth = getAuth(app);
+export const firebaseAuth: Auth = auth;
 
 if (typeof window !== 'undefined' && typeof indexedDB !== 'undefined') {
-  void setPersistence(firebaseAuth, browserLocalPersistence).catch(() => {
+  void setPersistence(auth, browserLocalPersistence).catch(() => {
     // Non-fatal in private browsing / headless test runners
   });
 }
 
 // Named database configured by firebase-applet-config.json (critical for production reads/writes)
-export const firestoreDb: Firestore = resolvedFirebaseConfig.firestoreDatabaseId
-  ? getFirestore(firebaseApp, resolvedFirebaseConfig.firestoreDatabaseId)
-  : getFirestore(firebaseApp);
+export const firestore: Firestore = resolvedFirebaseConfig.firestoreDatabaseId
+  ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
+  : getFirestore(app);
+
+export const firestoreDb: Firestore = firestore;
+
+export const storage: FirebaseStorage = getStorage(app);
 
 export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
 ): never {
-  const currentUser = firebaseAuth.currentUser;
+  const currentUser = auth.currentUser;
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
@@ -105,7 +113,7 @@ export async function testFirestoreConnection(): Promise<{
   offline: boolean;
 }> {
   try {
-    await getDocFromServer(doc(firestoreDb, 'test', 'connection'));
+    await getDocFromServer(doc(firestore, 'test', 'connection'));
     return { reachable: true, offline: false };
   } catch (error) {
     if (error instanceof Error && error.message.toLowerCase().includes('the client is offline')) {
